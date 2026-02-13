@@ -33,6 +33,7 @@ enum ItemType {
     itLayerRoot     = 64,
     itLayer         = 128,
     itInfo          = 256,
+    itVolumeGroup   = 512,  // Orca: Volume group
 };
 
 enum ColumnNumber
@@ -157,6 +158,12 @@ public:
     ObjectDataViewModelNode(ObjectDataViewModelNode* parent, const ItemType type, const int plate_idx = -1);
     // BBS: to be checked. Whether need to add plate_idx for the following constructor ?
     ObjectDataViewModelNode(ObjectDataViewModelNode* parent, const InfoItemType type);
+
+    // Orca: Constructor for volume groups
+    ObjectDataViewModelNode(ObjectDataViewModelNode* parent,
+                            const wxString& group_name,
+                            const int group_id,
+                            const wxString& extruder = wxEmptyString);
 
     ~ObjectDataViewModelNode()
     {
@@ -423,6 +430,9 @@ public:
     int  GetVolumeIdByItem(const wxDataViewItem& item) const;
     int  GetInstanceIdByItem(const wxDataViewItem& item) const;
     int  GetLayerIdByItem(const wxDataViewItem& item) const;
+    // Orca: Group handling methods
+    int  GetGroupIdByItem(const wxDataViewItem& item) const;
+    wxDataViewItem GetGroupItem(int obj_idx, int group_id) const;
     void GetItemInfo(const wxDataViewItem& item, ItemType& type, int& obj_idx, int& idx);
     int  GetRowByItem(const wxDataViewItem& item) const;
     bool IsEmpty() { return m_objects.empty(); }

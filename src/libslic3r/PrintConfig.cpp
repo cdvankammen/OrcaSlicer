@@ -6274,6 +6274,16 @@ void PrintConfigDef::init_fff_params()
     def->mode = comSimple;
     def->set_default_value(new ConfigOptionBool(false));
 
+    // Orca: per-filament prime tower selection
+    def = this->add("wipe_tower_filaments", coInts);
+    def->label = L("Prime tower filaments");
+    def->tooltip = L("Select which filaments use the prime tower for purging. "
+        "Empty selection means all filaments use the tower (default behavior). "
+        "Excluded filaments will flush into objects instead, reducing tower size and filament waste. "
+        "Note: Incompatible materials should not be excluded if they require tower purging.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionInts());
+
     def = this->add("prime_tower_enable_framework", coBool);
     def->label = L("Internal ribs");
     def->tooltip = L("Enable internal ribs to increase the stability of the prime tower.");
@@ -6305,6 +6315,25 @@ void PrintConfigDef::init_fff_params()
     def->tooltip = L("The actual flushing volumes is equal to the flush multiplier multiplied by the flushing volumes in the table.");
     //def->sidetext = "";
     def->set_default_value(new ConfigOptionFloats{0.3});
+
+    // Orca: per-filament flush target selection
+    def = this->add("support_flush_filaments", coInts);
+    def->category = L("Flush options");
+    def->label = L("Filaments for support flushing");
+    def->tooltip = L("Select which filaments can flush into support material. "
+        "Empty selection means all filaments can flush into support (default behavior). "
+        "This allows excluding incompatible materials from mixing in support structures.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionInts());
+
+    def = this->add("infill_flush_filaments", coInts);
+    def->category = L("Flush options");
+    def->label = L("Filaments for infill flushing");
+    def->tooltip = L("Select which filaments can flush into sparse infill. "
+        "Empty selection means all filaments can flush into infill (default behavior). "
+        "This allows excluding incompatible materials from mixing in infill.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionInts());
 
     // BBS
     def = this->add("prime_volume", coFloat);
@@ -6492,6 +6521,17 @@ void PrintConfigDef::init_fff_params()
         "Colors of the objects will be mixed as a result. "
         "It will not take effect unless the prime tower is enabled.");
     def->set_default_value(new ConfigOptionBool(false));
+
+    // Orca: per-filament flush target for specific objects
+    def = this->add("flush_into_this_object_filaments", coInts);
+    def->category = L("Flush options");
+    def->label = L("Accept flush from filaments");
+    def->tooltip = L("Select which filaments can flush into this specific object. "
+        "Empty selection means all filaments can flush into this object (default behavior). "
+        "This allows dedicating flush objects to specific filaments. "
+        "Only applies when 'Flush into this object' is enabled.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionInts());
 
     def = this->add("wipe_tower_bridging", coFloat);
     def->label = L("Maximal bridging distance");

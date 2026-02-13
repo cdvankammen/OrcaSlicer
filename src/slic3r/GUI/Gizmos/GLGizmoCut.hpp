@@ -147,6 +147,11 @@ class GLGizmoCut3D : public GLGizmoBase
     float m_contour_width{ 0.4f };
     float m_cut_plane_radius_koef{ 1.5f };
 
+    // Orca: Adjustable cutting plane size
+    float m_plane_width{ 0.f };   // 0 = auto-size (default)
+    float m_plane_height{ 0.f };  // 0 = auto-size (default)
+    bool  m_auto_size_plane{ true };
+
     mutable std::vector<bool> m_selected; // which pins are currently selected
     int  m_selected_count{ 0 };
 

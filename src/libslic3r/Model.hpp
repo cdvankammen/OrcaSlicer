@@ -101,6 +101,49 @@ private:
     }
 };
 
+// Orca: Hierarchical volume grouping
+class ModelVolume;
+class ModelObject;
+
+class ModelVolumeGroup : public ObjectBase
+{
+public:
+    std::string name;
+    int id{-1};  // Unique within this ModelObject
+    int extruder_id{-1};  // -1 = no override, use volume's extruder
+    bool visible{true};
+
+    std::vector<ModelVolume*> volumes;  // Non-owning pointers
+    ModelObject* parent_object{nullptr};  // Back-reference
+
+    ModelVolumeGroup() = default;
+    explicit ModelVolumeGroup(const std::string& name, int id)
+        : name(name), id(id) {}
+
+    // Serialization
+    template<class Archive> void serialize(Archive &ar) {
+        ar(cereal::base_class<ObjectBase>(this),
+           name, id, extruder_id, visible);
+        // Note: volumes are serialized by reference (volume IDs)
+    }
+
+    // Check if volume is in this group
+    bool contains_volume(const ModelVolume* vol) const {
+        return std::find(volumes.begin(), volumes.end(), vol) != volumes.end();
+    }
+
+    // Add/remove volumes
+    void add_volume(ModelVolume* vol);
+    void remove_volume(ModelVolume* vol);
+    void clear() { volumes.clear(); }
+
+    size_t volume_count() const { return volumes.size(); }
+    bool empty() const { return volumes.empty(); }
+};
+
+using ModelVolumeGroupPtr = std::unique_ptr<ModelVolumeGroup>;
+using ModelVolumeGroupPtrs = std::vector<ModelVolumeGroupPtr>;
+
 namespace Internal {
 	template<typename T>
 	class StaticSerializationWrapper
@@ -364,6 +407,8 @@ public:
     // Printable and modifier volumes, each with its material ID and a set of override parameters.
     // ModelVolumes are owned by this ModelObject.
     ModelVolumePtrs         volumes;
+    // Orca: Volume groups for hierarchical organization
+    ModelVolumeGroupPtrs    volume_groups;
     // Configuration parameters specific to a single ModelObject, overriding the global Slic3r settings.
     ModelConfigObject 		config;
     // Variation of a layer thickness for spans of Z coordinates + optional parameter overrides.
@@ -420,6 +465,17 @@ public:
     void                    clear_volumes();
     void                    sort_volumes(bool full_sort);
     bool                    is_multiparts() const { return volumes.size() > 1; }
+
+    // Orca: Group management
+    ModelVolumeGroup*       add_volume_group(const std::string& name = "Group");
+    void                    delete_volume_group(size_t idx);
+    void                    delete_volume_group(ModelVolumeGroup* group);
+    ModelVolumeGroup*       get_volume_group_by_id(int id);
+    const ModelVolumeGroup* get_volume_group_by_id(int id) const;
+    void                    move_volume_to_group(ModelVolume* vol, ModelVolumeGroup* group);
+    void                    move_volume_out_of_group(ModelVolume* vol);
+    ModelVolumeGroup*       get_group_for_volume(const ModelVolume* vol);
+    int                     get_next_group_id() const;
     // Checks if any of object volume is painted using the fdm support painting gizmo.
     bool                    is_fdm_support_painted() const;
     // Checks if any of object volume is painted using the seam painting gizmo.
@@ -913,6 +969,12 @@ public:
     // Extruder ID is only valid for FFF. Returns -1 for SLA or if the extruder ID is not applicable (support volumes).
     int                 extruder_id() const;
 
+    // Orca: Group membership
+    bool                is_grouped() const { return parent_group != nullptr; }
+    ModelVolumeGroup*   get_parent_group() { return parent_group; }
+    const ModelVolumeGroup* get_parent_group() const { return parent_group; }
+    void                set_parent_group(ModelVolumeGroup* group) { parent_group = group; }
+
     bool                is_splittable() const;
 
     // BBS
@@ -1028,6 +1090,8 @@ protected:
 private:
     // Parent object owning this ModelVolume.
     ModelObject*                    	object;
+    // Orca: Parent group if this volume is grouped
+    ModelVolumeGroup*                   parent_group{nullptr};
     // The triangular model.
     std::shared_ptr<const TriangleMesh> m_mesh;
     // Is it an object to be printed, or a modifier volume?

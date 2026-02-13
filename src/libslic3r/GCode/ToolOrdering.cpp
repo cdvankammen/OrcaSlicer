@@ -47,6 +47,19 @@ static std::set<int>get_filament_by_type(const std::vector<unsigned int>& used_f
     return target_filaments;
 }
 
+// Orca: Check if a filament is allowed to flush into a specific target based on configuration
+// Returns true if filament_list is empty (default: allow all) or if filament_id is in the list
+static bool is_filament_allowed_for_flushing(const ConfigOptionInts& filament_list, unsigned int filament_id)
+{
+    // Empty list means all filaments are allowed (default behavior)
+    if (filament_list.empty())
+        return true;
+
+    // Check if filament_id is in the allowed list (0-based indexing)
+    return std::find(filament_list.values.begin(), filament_list.values.end(),
+                    static_cast<int>(filament_id)) != filament_list.values.end();
+}
+
 
 // Returns true in case that extruder a comes before b (b does not have to be present). False otherwise.
 bool LayerTools::is_extruder_order(unsigned int a, unsigned int b) const
@@ -1608,6 +1621,12 @@ float WipingExtrusions::mark_wiping_extrusions(const Print& print, unsigned int 
     if (print.config().filament_is_support.get_at(old_extruder) || print.config().filament_is_support.get_at(new_extruder))
         return std::max(0.f, volume_to_wipe); // Support filament cannot be used to print support, infill, wipe_tower, etc.
 
+    // Orca: Check if filaments are allowed to use the prime tower
+    // If either filament is excluded from tower, try to flush everything into objects/support/infill
+    bool old_extruder_uses_tower = is_filament_allowed_for_flushing(print.config().wipe_tower_filaments, old_extruder);
+    bool new_extruder_uses_tower = is_filament_allowed_for_flushing(print.config().wipe_tower_filaments, new_extruder);
+    bool skip_tower_for_this_change = !old_extruder_uses_tower || !new_extruder_uses_tower;
+
     // we will sort objects so that dedicated for wiping are at the beginning:
     ConstPrintObjectPtrs object_list = print.objects().vector();
     // BBS: fix the exception caused by not fixed order between different objects
@@ -1650,13 +1669,25 @@ float WipingExtrusions::mark_wiping_extrusions(const Print& print, unsigned int 
 
                 if (!object->config().flush_into_infill && !object->config().flush_into_objects && !object->config().flush_into_support)
                     continue;
-                bool wipe_into_infill_only = !object->config().flush_into_objects && object->config().flush_into_infill;
+
+                // Orca: Check if this object accepts flush from this specific filament
+                // This applies to all flush types (objects, infill, support) for this object
+                if (!is_filament_allowed_for_flushing(object->config().flush_into_this_object_filaments, new_extruder))
+                    continue;  // Skip this object entirely for this filament
+
+                // Orca: Check if this filament is allowed to flush into infill (global setting)
+                bool filament_allowed_for_infill = is_filament_allowed_for_flushing(print.config().infill_flush_filaments, new_extruder);
+                bool wipe_into_infill_only = !object->config().flush_into_objects && object->config().flush_into_infill && filament_allowed_for_infill;
                 bool is_infill_first = region.config().is_infill_first;
                 if (is_infill_first != perimeters_done || wipe_into_infill_only) {
                     for (const ExtrusionEntity* ee : layerm->fills.entities) {                      // iterate through all infill Collections
                         auto* fill = dynamic_cast<const ExtrusionEntityCollection*>(ee);
 
                         if (!is_overriddable(*fill, print.config(), *object, region))
+                            continue;
+
+                        // Orca: Skip if this filament is not allowed to flush into infill
+                        if (object->config().flush_into_infill && !filament_allowed_for_infill)
                             continue;
 
                         if (wipe_into_infill_only && ! is_infill_first)
@@ -1692,6 +1723,10 @@ float WipingExtrusions::mark_wiping_extrusions(const Print& print, unsigned int 
 
             // BBS
             if (object->config().flush_into_support) {
+                // Orca: Check if this filament is allowed to flush into support
+                if (!is_filament_allowed_for_flushing(print.config().support_flush_filaments, new_extruder))
+                    continue;  // Skip support flushing for this filament
+
                 auto& object_config = object->config();
                 const SupportLayer* this_support_layer = object->get_support_layer_at_printz(lt.print_z, EPSILON);
 
@@ -1730,6 +1765,14 @@ float WipingExtrusions::mark_wiping_extrusions(const Print& print, unsigned int 
             }
         }
     }
+
+	// Orca: If this tool change should skip the prime tower, return 0 even if volume remains
+	if (skip_tower_for_this_change) {
+		// Filament is excluded from tower - all purging should happen in objects/support/infill
+		// If volume remains, it will be lost (user accepts this by excluding filament from tower)
+		return 0.f;
+	}
+
 	// Some purge remains to be done on the Wipe Tower.
     assert(volume_to_wipe > 0.);
     return volume_to_wipe;

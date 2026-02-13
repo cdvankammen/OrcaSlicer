@@ -31,7 +31,12 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL Clang)
     set(DEP_BOOST_TOOLSET "clang-win")
 endif ()
 
-set(DEP_MSVC_GEN "Visual Studio ${DEP_VS_VER}")
+# Use Ninja for VS 18 (2026) since CMake 3.31.5 doesn't have VS 18 generator
+if (DEP_VS_VER EQUAL "18")
+    set(DEP_MSVC_GEN "Ninja")
+else ()
+    set(DEP_MSVC_GEN "Visual Studio ${DEP_VS_VER}")
+endif ()
 if ("${DEPS_ARCH}" STREQUAL "x86")
     set(DEP_PLATFORM "Win32")
 elseif ("${DEPS_ARCH}" STREQUAL "x64")
@@ -49,12 +54,21 @@ endif ()
 macro(add_debug_dep _dep)
 if (${DEP_DEBUG})
     ExternalProject_Get_Property(${_dep} BINARY_DIR)
-    ExternalProject_Add_Step(${_dep} build_debug
-        DEPENDEES build
-        DEPENDERS install
-        COMMAND msbuild /m /P:Configuration=Debug INSTALL.vcxproj
-        WORKING_DIRECTORY "${BINARY_DIR}"
-    )
+    if (DEP_MSVC_GEN STREQUAL "Ninja")
+        ExternalProject_Add_Step(${_dep} build_debug
+            DEPENDEES build
+            DEPENDERS install
+            COMMAND "${CMAKE_COMMAND}" --build . --config Debug
+            WORKING_DIRECTORY "${BINARY_DIR}"
+        )
+    else ()
+        ExternalProject_Add_Step(${_dep} build_debug
+            DEPENDEES build
+            DEPENDERS install
+            COMMAND msbuild /m /P:Configuration=Debug INSTALL.vcxproj
+            WORKING_DIRECTORY "${BINARY_DIR}"
+        )
+    endif ()
 endif ()
 endmacro()
 

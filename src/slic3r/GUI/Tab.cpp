@@ -2575,6 +2575,7 @@ void TabPrint::build()
     page = add_options_page(L("Multimaterial"), "custom-gcode_multi_material"); // ORCA: icon only visible on placeholders
         optgroup = page->new_optgroup(L("Prime tower"), L"param_tower");
         optgroup->append_single_option_line("enable_prime_tower", "multimaterial_settings_prime_tower");
+        optgroup->append_single_option_line("wipe_tower_filaments", "multimaterial_settings_prime_tower#prime-tower-filaments");
         optgroup->append_single_option_line("prime_tower_skip_points", "multimaterial_settings_prime_tower");
         optgroup->append_single_option_line("enable_tower_interface_features", "multimaterial_settings_prime_tower");
         optgroup->append_single_option_line("enable_tower_interface_cooldown_during_tower", "multimaterial_settings_prime_tower");
@@ -2612,6 +2613,9 @@ void TabPrint::build()
         optgroup->append_single_option_line("flush_into_infill", "multimaterial_settings_flush_options#flush-into-objects-infill");
         optgroup->append_single_option_line("flush_into_objects", "multimaterial_settings_flush_options");
         optgroup->append_single_option_line("flush_into_support", "multimaterial_settings_flush_options#flush-into-objects-support");
+        // Orca: per-filament flush target selection
+        optgroup->append_single_option_line("support_flush_filaments", "multimaterial_settings_flush_options#filaments-for-support-flushing");
+        optgroup->append_single_option_line("infill_flush_filaments", "multimaterial_settings_flush_options#filaments-for-infill-flushing");
         optgroup = page->new_optgroup(L("Advanced"), L"advanced");
         optgroup->append_single_option_line("interlocking_beam", "multimaterial_settings_advanced#interlocking-beam");
         optgroup->append_single_option_line("interface_shells", "multimaterial_settings_advanced#interface-shells");

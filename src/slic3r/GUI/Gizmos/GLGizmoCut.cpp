@@ -1212,7 +1212,8 @@ void GLGizmoCut3D::on_load(cereal::BinaryInputArchive& ar)
 
     ar( m_keep_upper, m_keep_lower, m_rotate_lower, m_rotate_upper, m_hide_cut_plane, mode, m_connectors_editing,
         m_ar_plane_center, m_rotation_m,
-        groove_depth, groove_width, groove_flaps_angle, groove_angle, groove_depth_tolerance, groove_width_tolerance);
+        groove_depth, groove_width, groove_flaps_angle, groove_angle, groove_depth_tolerance, groove_width_tolerance,
+        m_plane_width, m_plane_height, m_auto_size_plane);
 
     m_start_dragging_m = m_rotation_m;
 
@@ -1244,10 +1245,11 @@ void GLGizmoCut3D::on_load(cereal::BinaryInputArchive& ar)
 }
 
 void GLGizmoCut3D::on_save(cereal::BinaryOutputArchive& ar) const
-{ 
+{
     ar( m_keep_upper, m_keep_lower, m_rotate_lower, m_rotate_upper, m_hide_cut_plane, m_mode, m_connectors_editing,
         m_ar_plane_center, m_start_dragging_m,
-        m_groove.depth, m_groove.width, m_groove.flaps_angle, m_groove.angle, m_groove.depth_tolerance, m_groove.width_tolerance);
+        m_groove.depth, m_groove.width, m_groove.flaps_angle, m_groove.angle, m_groove.depth_tolerance, m_groove.width_tolerance,
+        m_plane_width, m_plane_height, m_auto_size_plane);
 }
 
 std::string GLGizmoCut3D::on_get_name() const
@@ -1832,8 +1834,19 @@ void GLGizmoCut3D::init_picking_models()
 
     if (!m_plane.model.is_initialized() && !m_hide_cut_plane && !m_connectors_editing) {
         const double cp_width = 0.02 * get_grabber_mean_size(m_bounding_box);
+
+        // Orca: Use manual plane size if specified, otherwise use auto-calculated size
+        double plane_radius;
+        if (!m_auto_size_plane && m_plane_width > 0.f && m_plane_height > 0.f) {
+            // Manual size: use average of width and height as radius
+            plane_radius = (double)(m_plane_width + m_plane_height) / 4.0;
+        } else {
+            // Auto size: use calculated radius
+            plane_radius = (double)m_cut_plane_radius_koef * m_radius;
+        }
+
         indexed_triangle_set its = m_mode == size_t(CutMode::cutTongueAndGroove) ? its_make_groove_plane() :
-                                   its_make_frustum_dowel((double)m_cut_plane_radius_koef * m_radius, cp_width, m_cut_plane_as_circle ? 180 : 4);
+                                   its_make_frustum_dowel(plane_radius, cp_width, m_cut_plane_as_circle ? 180 : 4);
 
         m_plane.model.init_from(its);
         m_plane.mesh_raycaster = std::make_unique<MeshRaycaster>(std::make_shared<const TriangleMesh>(std::move(its)));
@@ -2664,6 +2677,40 @@ void GLGizmoCut3D::render_cut_plane_input_window(CutConnectors &connectors, floa
         m_imgui->disabled_end();
 
 //        render_flip_plane_button();
+
+        // Orca: Adjustable cutting plane size
+        add_vertical_scaled_interval(0.5f);
+        ImGui::AlignTextToFramePadding();
+        m_imgui->text(_L("Plane size"));
+        ImGui::SameLine(m_label_width);
+        if (m_imgui->bbl_checkbox("##auto_size_plane", m_auto_size_plane)) {
+            // Reset to auto-size
+            m_plane_width = 0.f;
+            m_plane_height = 0.f;
+            update_plane_model();
+        }
+        ImGui::SameLine();
+        m_imgui->text(_L("Auto"));
+
+        if (!m_auto_size_plane) {
+            ImGui::AlignTextToFramePadding();
+            m_imgui->text(_L("Width"));
+            ImGui::SameLine(m_label_width);
+            ImGui::PushItemWidth(m_control_width);
+            if (ImGui::SliderFloat("##plane_width", &m_plane_width, 10.f, 500.f, "%.1f mm")) {
+                update_plane_model();
+            }
+            ImGui::PopItemWidth();
+
+            ImGui::AlignTextToFramePadding();
+            m_imgui->text(_L("Height"));
+            ImGui::SameLine(m_label_width);
+            ImGui::PushItemWidth(m_control_width);
+            if (ImGui::SliderFloat("##plane_height", &m_plane_height, 10.f, 500.f, "%.1f mm")) {
+                update_plane_model();
+            }
+            ImGui::PopItemWidth();
+        }
 
         if (mode == CutMode::cutPlanar) {
             add_vertical_scaled_interval(0.75f);

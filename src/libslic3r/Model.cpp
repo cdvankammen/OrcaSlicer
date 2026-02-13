@@ -1375,6 +1375,117 @@ void ModelObject::sort_volumes(bool full_sort)
         });
 }
 
+// Orca: Group management methods
+ModelVolumeGroup* ModelObject::add_volume_group(const std::string& name)
+{
+    int id = get_next_group_id();
+    auto group = std::make_unique<ModelVolumeGroup>(
+        name.empty() ? "Group " + std::to_string(id) : name,
+        id
+    );
+    group->parent_object = this;
+
+    ModelVolumeGroup* ptr = group.get();
+    volume_groups.push_back(std::move(group));
+    return ptr;
+}
+
+void ModelObject::delete_volume_group(size_t idx)
+{
+    if (idx >= volume_groups.size())
+        return;
+
+    // Remove group reference from all volumes
+    for (ModelVolume* vol : volume_groups[idx]->volumes) {
+        vol->parent_group = nullptr;
+    }
+
+    volume_groups.erase(volume_groups.begin() + idx);
+}
+
+void ModelObject::delete_volume_group(ModelVolumeGroup* group)
+{
+    auto it = std::find_if(volume_groups.begin(), volume_groups.end(),
+        [group](const ModelVolumeGroupPtr& g) { return g.get() == group; });
+    if (it != volume_groups.end()) {
+        delete_volume_group(std::distance(volume_groups.begin(), it));
+    }
+}
+
+ModelVolumeGroup* ModelObject::get_volume_group_by_id(int id)
+{
+    for (auto& group : volume_groups) {
+        if (group->id == id)
+            return group.get();
+    }
+    return nullptr;
+}
+
+const ModelVolumeGroup* ModelObject::get_volume_group_by_id(int id) const
+{
+    for (const auto& group : volume_groups) {
+        if (group->id == id)
+            return group.get();
+    }
+    return nullptr;
+}
+
+void ModelObject::move_volume_to_group(ModelVolume* vol, ModelVolumeGroup* group)
+{
+    if (!vol || !group)
+        return;
+
+    // Remove from old group if any
+    if (vol->parent_group) {
+        vol->parent_group->remove_volume(vol);
+    }
+
+    // Add to new group
+    group->add_volume(vol);
+    vol->parent_group = group;
+}
+
+void ModelObject::move_volume_out_of_group(ModelVolume* vol)
+{
+    if (!vol || !vol->parent_group)
+        return;
+
+    vol->parent_group->remove_volume(vol);
+    vol->parent_group = nullptr;
+}
+
+ModelVolumeGroup* ModelObject::get_group_for_volume(const ModelVolume* vol)
+{
+    if (!vol)
+        return nullptr;
+    return vol->parent_group;
+}
+
+int ModelObject::get_next_group_id() const
+{
+    int max_id = 0;
+    for (const auto& group : volume_groups) {
+        max_id = std::max(max_id, group->id);
+    }
+    return max_id + 1;
+}
+
+// ModelVolumeGroup implementations
+void ModelVolumeGroup::add_volume(ModelVolume* vol)
+{
+    if (!vol || contains_volume(vol))
+        return;
+    volumes.push_back(vol);
+}
+
+void ModelVolumeGroup::remove_volume(ModelVolume* vol)
+{
+    auto it = std::find(volumes.begin(), volumes.end(), vol);
+    if (it != volumes.end()) {
+        volumes.erase(it);
+    }
+}
+
 ModelInstance* ModelObject::add_instance()
 {
     ModelInstance* i = new ModelInstance(this);

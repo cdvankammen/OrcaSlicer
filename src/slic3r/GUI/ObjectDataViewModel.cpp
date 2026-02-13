@@ -138,6 +138,22 @@ ObjectDataViewModelNode::ObjectDataViewModelNode(ObjectDataViewModelNode* parent
         init_container();
 }
 
+// Orca: Constructor for volume groups
+ObjectDataViewModelNode::ObjectDataViewModelNode(ObjectDataViewModelNode* parent,
+                                                 const wxString& group_name,
+                                                 const int group_id,
+                                                 const wxString& extruder) :
+    m_parent(parent),
+    m_name(group_name),
+    m_type(itVolumeGroup),
+    m_idx(group_id),
+    m_extruder(extruder)
+{
+    // Use folder or custom group icon
+    m_bmp = create_scaled_bitmap("cog");  // Placeholder icon
+    init_container();  // Groups can contain volumes
+}
+
 ObjectDataViewModelNode::ObjectDataViewModelNode(ObjectDataViewModelNode* parent,
                                                  const t_layer_height_range& layer_range,
                                                  const int idx /*= -1 */,
@@ -1463,6 +1479,32 @@ int ObjectDataViewModel::GetInstanceIdByItem(const wxDataViewItem& item) const
 int ObjectDataViewModel::GetLayerIdByItem(const wxDataViewItem& item) const
 {
     return GetIdByItemAndType(item, itLayer);
+}
+
+// Orca: Group handling methods
+int ObjectDataViewModel::GetGroupIdByItem(const wxDataViewItem& item) const
+{
+    return GetIdByItemAndType(item, itVolumeGroup);
+}
+
+wxDataViewItem ObjectDataViewModel::GetGroupItem(int obj_idx, int group_id) const
+{
+    if (obj_idx < 0 || obj_idx >= (int)m_objects.size())
+        return wxDataViewItem(nullptr);
+
+    const auto obj_item = m_objects[obj_idx];
+    ObjectDataViewModelNode* obj_node = static_cast<ObjectDataViewModelNode*>(obj_item);
+    if (!obj_node)
+        return wxDataViewItem(nullptr);
+
+    for (size_t i = 0; i < obj_node->GetChildCount(); ++i) {
+        ObjectDataViewModelNode* child = obj_node->GetNthChild(i);
+        if (child->GetType() == itVolumeGroup && child->GetIdx() == group_id) {
+            return wxDataViewItem(child);
+        }
+    }
+
+    return wxDataViewItem(nullptr);
 }
 
 t_layer_height_range ObjectDataViewModel::GetLayerRangeByItem(const wxDataViewItem& item) const

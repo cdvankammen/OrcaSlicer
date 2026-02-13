@@ -201,6 +201,10 @@ static constexpr const char* COMPONENT_TAG = "component";
 static constexpr const char* BUILD_TAG = "build";
 static constexpr const char* ITEM_TAG = "item";
 static constexpr const char* METADATA_TAG = "metadata";
+// Orca: Volume group tags
+static constexpr const char* VOLUMEGROUPS_TAG = "volumegroups";
+static constexpr const char* GROUP_TAG = "group";
+static constexpr const char* VOLUME_TAG = "volume";
 static constexpr const char* FILAMENT_TAG = "filament";
 static constexpr const char* SLICE_WARNING_TAG = "warning";
 static constexpr const char* WARNING_MSG_TAG = "msg";
@@ -263,6 +267,9 @@ static constexpr const char* NAME_ATTR = "name";
 static constexpr const char* COLOR_ATTR = "color";
 static constexpr const char* TYPE_ATTR = "type";
 static constexpr const char* ID_ATTR = "id";
+// Orca: Volume group attributes
+static constexpr const char* REFID_ATTR = "refid";
+static constexpr const char* EXTRUDER_ATTR = "extruder";
 static constexpr const char* X_ATTR = "x";
 static constexpr const char* Y_ATTR = "y";
 static constexpr const char* Z_ATTR = "z";
@@ -1055,6 +1062,18 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         int m_current_color_group{-1};
         std::map<int, std::string> m_group_id_to_color;
 
+        // Orca: Group parsing state
+        struct GroupParseState {
+            int id{-1};
+            std::string name;
+            int extruder_id{-1};
+            bool visible{true};
+            std::vector<int> volume_indices;
+        };
+        GroupParseState m_current_group;
+        std::vector<GroupParseState> m_parsed_groups;
+        bool m_in_group_context{false};
+
     public:
         _BBS_3MF_Importer();
         ~_BBS_3MF_Importer();
@@ -1179,6 +1198,13 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         bool _handle_start_config_volume_mesh(const char** attributes, unsigned int num_attributes);
         bool _handle_end_config_volume();
         bool _handle_end_config_volume_mesh();
+
+        // Orca: Group parsing handlers
+        bool _handle_start_volumegroups(const char** attributes, unsigned int num_attributes);
+        bool _handle_end_volumegroups();
+        bool _handle_start_group(const char** attributes, unsigned int num_attributes);
+        bool _handle_end_group();
+        bool _handle_group_volume(const char** attributes, unsigned int num_attributes);
 
         bool _handle_start_config_metadata(const char** attributes, unsigned int num_attributes);
         bool _handle_end_config_metadata();
@@ -3258,8 +3284,13 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             res = _handle_start_config(attributes, num_attributes);
         else if (::strcmp(OBJECT_TAG, name) == 0)
             res = _handle_start_config_object(attributes, num_attributes);
-        else if (::strcmp(VOLUME_TAG, name) == 0)
-            res = _handle_start_config_volume(attributes, num_attributes);
+        else if (::strcmp(VOLUME_TAG, name) == 0) {
+            // Check if we're inside a group context
+            if (m_in_group_context)
+                res = _handle_group_volume(attributes, num_attributes);
+            else
+                res = _handle_start_config_volume(attributes, num_attributes);
+        }
         else if (::strcmp(PART_TAG, name) == 0)
             res = _handle_start_config_volume(attributes, num_attributes);
         else if (::strcmp(MESH_STAT_TAG, name) == 0)
@@ -3284,6 +3315,11 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             res = _handle_start_assemble_item(attributes, num_attributes);
         else if (::strcmp(TEXT_INFO_TAG, name) == 0)
             res = _handle_start_text_info_item(attributes, num_attributes);
+        // Orca: Volume groups parsing
+        else if (::strcmp(VOLUMEGROUPS_TAG, name) == 0)
+            res = _handle_start_volumegroups(attributes, num_attributes);
+        else if (::strcmp(GROUP_TAG, name) == 0)
+            res = _handle_start_group(attributes, num_attributes);
 
         if (!res)
             _stop_xml_parser();
@@ -3318,6 +3354,11 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             res = _handle_end_assemble();
         else if (::strcmp(ASSEMBLE_ITEM_TAG, name) == 0)
             res = _handle_end_assemble_item();
+        // Orca: Volume groups parsing
+        else if (::strcmp(VOLUMEGROUPS_TAG, name) == 0)
+            res = _handle_end_volumegroups();
+        else if (::strcmp(GROUP_TAG, name) == 0)
+            res = _handle_end_group();
 
         if (!res)
             _stop_xml_parser();
@@ -4145,6 +4186,80 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
     bool _BBS_3MF_Importer::_handle_end_config_volume_mesh()
     {
         // do nothing
+        return true;
+    }
+
+    // Orca: Volume groups parsing implementation
+    bool _BBS_3MF_Importer::_handle_start_volumegroups(const char** attributes, unsigned int num_attributes)
+    {
+        // Start of volumegroups section
+        m_parsed_groups.clear();
+        return true;
+    }
+
+    bool _BBS_3MF_Importer::_handle_end_volumegroups()
+    {
+        // Apply parsed groups to current object
+        if (m_curr_config.object_id >= 0) {
+            IdToModelObjectMap::iterator object_item = m_objects.find(m_curr_config.object_id);
+            if (object_item != m_objects.end() && object_item->second != nullptr) {
+                ModelObject* object = object_item->second;
+
+                for (const auto& group_data : m_parsed_groups) {
+                    ModelVolumeGroup* group = object->add_volume_group(group_data.name);
+                    group->id = group_data.id;
+                    group->extruder_id = group_data.extruder_id;
+                    group->visible = group_data.visible;
+
+                    // Add volumes to group
+                    for (int vol_idx : group_data.volume_indices) {
+                        if (vol_idx >= 0 && vol_idx < (int)object->volumes.size()) {
+                            ModelVolume* vol = object->volumes[vol_idx];
+                            group->add_volume(vol);
+                            vol->parent_group = group;
+                        }
+                    }
+                }
+            }
+        }
+        m_parsed_groups.clear();
+        return true;
+    }
+
+    bool _BBS_3MF_Importer::_handle_start_group(const char** attributes, unsigned int num_attributes)
+    {
+        m_current_group = GroupParseState();
+        m_current_group.id = bbs_get_attribute_value_int(attributes, num_attributes, ID_ATTR);
+        m_current_group.name = bbs_get_attribute_value_string(attributes, num_attributes, NAME_ATTR);
+
+        std::string extruder_str = bbs_get_attribute_value_string(attributes, num_attributes, EXTRUDER_ATTR);
+        if (!extruder_str.empty()) {
+            try {
+                m_current_group.extruder_id = std::stoi(extruder_str);
+            } catch (...) {
+                m_current_group.extruder_id = -1;
+            }
+        }
+
+        std::string visible_str = bbs_get_attribute_value_string(attributes, num_attributes, "visible");
+        m_current_group.visible = (visible_str != "0");
+
+        m_in_group_context = true;
+        return true;
+    }
+
+    bool _BBS_3MF_Importer::_handle_end_group()
+    {
+        m_parsed_groups.push_back(m_current_group);
+        m_current_group = GroupParseState();
+        m_in_group_context = false;
+        return true;
+    }
+
+    bool _BBS_3MF_Importer::_handle_group_volume(const char** attributes, unsigned int num_attributes)
+    {
+        int refid = bbs_get_attribute_value_int(attributes, num_attributes, REFID_ATTR);
+        m_current_group.volume_indices.push_back(refid);
         return true;
     }
 
@@ -7657,6 +7772,32 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                             stream << "    </" << PART_TAG << ">\n";
                         }
                     }
+                }
+
+                // Orca: Export volume groups
+                if (!obj->volume_groups.empty()) {
+                    stream << "    <volumegroups>\n";
+                    for (const auto& group : obj->volume_groups) {
+                        stream << "      <group id=\"" << group->id << "\" name=\""
+                               << xml_escape(group->name) << "\" ";
+                        if (group->extruder_id >= 0) {
+                            stream << "extruder=\"" << group->extruder_id << "\" ";
+                        }
+                        stream << "visible=\"" << (group->visible ? "1" : "0") << "\">\n";
+
+                        // Export volume references
+                        for (const ModelVolume* vol : group->volumes) {
+                            // Find volume index
+                            auto it = std::find(obj->volumes.begin(), obj->volumes.end(), vol);
+                            if (it != obj->volumes.end()) {
+                                int vol_idx = std::distance(obj->volumes.begin(), it);
+                                stream << "        <volume refid=\"" << vol_idx << "\"/>\n";
+                            }
+                        }
+
+                        stream << "      </group>\n";
+                    }
+                    stream << "    </volumegroups>\n";
                 }
 
                 stream << "  </" << OBJECT_TAG << ">\n";
