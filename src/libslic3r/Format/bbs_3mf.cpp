@@ -316,6 +316,8 @@ static constexpr const char* INSTANCEID_ATTR = "instance_id";
 static constexpr const char* IDENTIFYID_ATTR = "identify_id";
 static constexpr const char* PLATERID_ATTR = "plater_id";
 static constexpr const char* PLATER_NAME_ATTR = "plater_name";
+static constexpr const char* PLATE_PRINTER_PRESET_ATTR = "printer_preset";  // Orca: Per-plate printer preset
+static constexpr const char* PLATE_FILAMENT_PRESETS_ATTR = "filament_presets";  // Orca: Per-plate filament presets (comma-separated)
 static constexpr const char* PLATE_IDX_ATTR = "index";
 static constexpr const char* PRINTER_MODEL_ID_ATTR = "printer_model_id";
 static constexpr const char* EXTRUDER_TYPE_ATTR = "extruder_type";
@@ -4323,6 +4325,20 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             else if (key == PLATER_NAME_ATTR) {
                 m_curr_plater->plate_name = xml_unescape(value.c_str());
             }
+            // Orca: Per-plate printer preset
+            else if (key == PLATE_PRINTER_PRESET_ATTR) {
+                m_curr_plater->printer_preset = xml_unescape(value.c_str());
+            }
+            // Orca: Per-plate filament presets (comma-separated)
+            else if (key == PLATE_FILAMENT_PRESETS_ATTR) {
+                std::string filament_str = xml_unescape(value.c_str());
+                m_curr_plater->filament_presets.clear();
+                std::istringstream ss(filament_str);
+                std::string filament_preset;
+                while (std::getline(ss, filament_preset, ',')) {
+                    m_curr_plater->filament_presets.push_back(filament_preset);
+                }
+            }
             else if (key == LOCK_ATTR)
             {
                 std::istringstream(value) >> std::boolalpha >> m_curr_plater->locked;
@@ -7816,6 +7832,20 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                 //plate index
                 stream << "    <" << METADATA_TAG << " " << KEY_ATTR << "=\"" << PLATERID_ATTR << "\" " << VALUE_ATTR << "=\"" << plate_data->plate_index + 1 << "\"/>\n";
                 stream << "    <" << METADATA_TAG << " " << KEY_ATTR << "=\"" << PLATER_NAME_ATTR << "\" " << VALUE_ATTR << "=\"" <<  xml_escape(plate_data->plate_name.c_str()) << "\"/>\n";
+                // Orca: Per-plate printer preset
+                if (!plate_data->printer_preset.empty()) {
+                    stream << "    <" << METADATA_TAG << " " << KEY_ATTR << "=\"" << PLATE_PRINTER_PRESET_ATTR << "\" " << VALUE_ATTR << "=\"" << xml_escape(plate_data->printer_preset.c_str()) << "\"/>\n";
+                }
+                // Orca: Per-plate filament presets (comma-separated)
+                if (!plate_data->filament_presets.empty()) {
+                    std::string filament_list;
+                    for (size_t i = 0; i < plate_data->filament_presets.size(); ++i) {
+                        filament_list += xml_escape(plate_data->filament_presets[i].c_str());
+                        if (i < plate_data->filament_presets.size() - 1)
+                            filament_list += ",";
+                    }
+                    stream << "    <" << METADATA_TAG << " " << KEY_ATTR << "=\"" << PLATE_FILAMENT_PRESETS_ATTR << "\" " << VALUE_ATTR << "=\"" << filament_list << "\"/>\n";
+                }
                 stream << "    <" << METADATA_TAG << " " << KEY_ATTR << "=\"" << LOCK_ATTR << "\" " << VALUE_ATTR << "=\"" << std::boolalpha<< plate_data->locked<< "\"/>\n";
                 ConfigOption* bed_type_opt = plate_data->config.option("curr_bed_type");
                 t_config_enum_names bed_type_names = ConfigOptionEnum<BedType>::get_enum_names();

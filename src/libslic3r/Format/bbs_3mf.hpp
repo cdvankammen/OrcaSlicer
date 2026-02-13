@@ -87,6 +87,8 @@ struct PlateData
     std::string     gcode_weight;
     std::string     first_layer_time;
     std::string     plate_name;
+    std::string     printer_preset;               // Orca: Per-plate printer preset name
+    std::vector<std::string> filament_presets;    // Orca: Per-plate filament preset names
     std::vector<FilamentInfo> slice_filaments_info;
     std::vector<size_t> skipped_objects;
     DynamicPrintConfig config;

@@ -21,9 +21,9 @@
 | 4 | Support Flush Selection | 32 | ✅ Complete | Low |
 | 5 | Hierarchical Grouping | 919 | ✅ Complete | High |
 | 6 | Cutting Plane Adjustability | 37 | ✅ Complete | Low |
-| 2 | Per-Plate Settings | 710* | 📋 Planned | Very High |
+| 2 | Per-Plate Settings | 180/710 | 🔄 60% Done | Very High |
 
-*Estimated
+*Backend complete, GUI pending
 
 ---
 

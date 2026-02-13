@@ -166,6 +166,10 @@ private:
     wxCoord m_name_texture_width;
     wxCoord m_name_texture_height;
 
+    // Orca: Per-plate printer and filament presets
+    std::string m_printer_preset_name;             // Empty = use global printer preset
+    std::vector<std::string> m_filament_preset_names;  // Empty = use global filament presets
+
     void init();
     bool valid_instance(int obj_id, int instance_id);
     void generate_print_polygon(ExPolygon &print_polygon);
@@ -298,6 +302,27 @@ public:
     void generate_plate_name_texture();
     //set the plate's name
     void set_plate_name(const std::string& name);
+
+    // Orca: Per-plate printer and filament preset management
+    std::string get_printer_preset_name() const { return m_printer_preset_name; }
+    void set_printer_preset_name(const std::string& preset_name);
+    bool has_custom_printer_preset() const { return !m_printer_preset_name.empty(); }
+    void clear_printer_preset() { m_printer_preset_name.clear(); }
+
+    std::vector<std::string> get_filament_preset_names() const { return m_filament_preset_names; }
+    void set_filament_preset_names(const std::vector<std::string>& preset_names);
+    bool has_custom_filament_presets() const { return !m_filament_preset_names.empty(); }
+    void clear_filament_presets() { m_filament_preset_names.clear(); }
+
+    // Get the effective printer preset for this plate (returns plate-specific if set, otherwise empty for global)
+    std::string get_effective_printer_preset(const std::string& global_preset) const;
+    // Get the effective filament presets for this plate (returns plate-specific if set, otherwise empty for global)
+    std::vector<std::string> get_effective_filament_presets(const std::vector<std::string>& global_presets) const;
+
+    // Orca: Build the resolved DynamicPrintConfig for this plate, merging global and plate-specific presets
+    // Returns nullptr if using global config (no plate-specific presets)
+    // Returns a new DynamicPrintConfig* if plate has custom presets (caller owns the pointer)
+    DynamicPrintConfig* build_plate_config(class PresetBundle* preset_bundle) const;
 
     void set_timelapse_warning_code(int code) { m_timelapse_warning_code = code; }
     int  timelapse_warning_code() { return m_timelapse_warning_code; }

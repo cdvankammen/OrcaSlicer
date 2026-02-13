@@ -17302,6 +17302,10 @@ void Plater::open_platesettings_dialog(wxCommandEvent& evt) {
 
     dlg.sync_spiral_mode(curr_plate->get_spiral_vase_mode(), !curr_plate->has_spiral_mode_config());
 
+    // Orca: Sync per-plate printer and filament presets
+    dlg.sync_printer_preset(curr_plate->get_printer_preset_name());
+    dlg.sync_filament_presets(curr_plate->get_filament_preset_names());
+
     dlg.Bind(EVT_SET_BED_TYPE_CONFIRM, [this, plate_index, &dlg](wxCommandEvent& e) {
         PartPlate* curr_plate = p->partplate_list.get_curr_plate();
         BedType old_bed_type = curr_plate->get_bed_type();
@@ -17338,6 +17342,18 @@ void Plater::open_platesettings_dialog(wxCommandEvent& evt) {
         }
         else {
             curr_plate->set_spiral_vase_mode(false, true);
+        }
+
+        // Orca: Save per-plate printer and filament presets
+        std::string printer_preset = dlg.get_printer_preset();
+        std::vector<std::string> filament_presets = dlg.get_filament_presets();
+
+        curr_plate->set_printer_preset_name(printer_preset);
+        curr_plate->set_filament_preset_names(filament_presets);
+
+        if (!printer_preset.empty() || !filament_presets.empty()) {
+            BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format("Plate %1%: Custom printer='%2%', %3% filament presets")
+                % plate_index % printer_preset % filament_presets.size();
         }
 
         update_project_dirty_from_presets();

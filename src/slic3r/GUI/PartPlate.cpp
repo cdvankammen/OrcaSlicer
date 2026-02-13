@@ -1184,7 +1184,7 @@ void PartPlate::render_icons(bool bottom, bool only_name, int hover_id)
 
 
 			if (m_partplate_list->render_plate_settings) {
-				bool has_plate_settings = get_bed_type() != BedType::btDefault || get_print_seq() != PrintSequence::ByDefault || !get_first_layer_print_sequence().empty() || !get_other_layers_print_sequence().empty() || has_spiral_mode_config();
+				bool has_plate_settings = get_bed_type() != BedType::btDefault || get_print_seq() != PrintSequence::ByDefault || !get_first_layer_print_sequence().empty() || !get_other_layers_print_sequence().empty() || has_spiral_mode_config() || has_custom_printer_preset() || has_custom_filament_presets();  // Orca: Include custom presets
                 if (hover_id == 5) {
                     if (!has_plate_settings)
                         render_icon_texture(m_plate_settings_icon.model, m_partplate_list->m_plate_settings_hovered_texture);
@@ -2327,8 +2327,8 @@ void PartPlate::generate_plate_name_texture()
     calc_vertex_for_plate_name_edit_icon(&m_name_texture, 0, m_plate_name_edit_icon);
     register_model_for_picking(*canvas, m_plate_name_edit_icon, picking_id_component(6));
 }
-void PartPlate::set_plate_name(const std::string& name) 
-{ 
+void PartPlate::set_plate_name(const std::string& name)
+{
 	// compare if name equal to m_name, case sensitive
     if (boost::equals(m_name, name))
         return;
@@ -2338,6 +2338,97 @@ void PartPlate::set_plate_name(const std::string& name)
         m_print->set_plate_name(name);
 
 	generate_plate_name_texture();
+}
+
+// Orca: Per-plate printer and filament preset management
+void PartPlate::set_printer_preset_name(const std::string& preset_name)
+{
+    if (m_printer_preset_name == preset_name)
+        return;
+
+    m_printer_preset_name = preset_name;
+
+    // Invalidate slice result when printer preset changes
+    if (m_print)
+        m_print->invalidate_all_steps();
+    m_ready_for_slice = false;
+}
+
+void PartPlate::set_filament_preset_names(const std::vector<std::string>& preset_names)
+{
+    if (m_filament_preset_names == preset_names)
+        return;
+
+    m_filament_preset_names = preset_names;
+
+    // Invalidate slice result when filament presets change
+    if (m_print)
+        m_print->invalidate_all_steps();
+    m_ready_for_slice = false;
+}
+
+std::string PartPlate::get_effective_printer_preset(const std::string& global_preset) const
+{
+    // Return plate-specific preset if set, otherwise use global
+    return m_printer_preset_name.empty() ? global_preset : m_printer_preset_name;
+}
+
+std::vector<std::string> PartPlate::get_effective_filament_presets(const std::vector<std::string>& global_presets) const
+{
+    // Return plate-specific presets if set, otherwise use global
+    return m_filament_preset_names.empty() ? global_presets : m_filament_preset_names;
+}
+
+// Orca: Build the resolved DynamicPrintConfig for this plate, merging global and plate-specific presets
+DynamicPrintConfig* PartPlate::build_plate_config(PresetBundle* preset_bundle) const
+{
+    if (!preset_bundle)
+        return nullptr;
+
+    // If plate has no custom presets, return nullptr to indicate using global config
+    if (!has_custom_printer_preset() && !has_custom_filament_presets())
+        return nullptr;
+
+    // Get the effective printer preset name
+    std::string effective_printer_name = get_effective_printer_preset(preset_bundle->printers.get_selected_preset().name);
+
+    // Find the printer preset
+    Preset* printer_preset = preset_bundle->printers.find_preset(effective_printer_name, false);
+    if (!printer_preset) {
+        BOOST_LOG_TRIVIAL(warning) << "PartPlate::build_plate_config: Printer preset '" << effective_printer_name << "' not found, using global";
+        printer_preset = &preset_bundle->printers.get_edited_preset();
+    }
+
+    // Get the current print preset (always use global for now)
+    Preset& print_preset = preset_bundle->prints.get_edited_preset();
+
+    // Get the effective filament preset names
+    std::vector<std::string> effective_filament_names = get_effective_filament_presets(preset_bundle->filament_presets);
+
+    // Build the filament preset list
+    std::vector<Preset> filament_presets;
+    for (const std::string& filament_name : effective_filament_names) {
+        Preset* filament_preset = preset_bundle->filaments.find_preset(filament_name, false);
+        if (filament_preset) {
+            filament_presets.push_back(*filament_preset);
+        } else {
+            BOOST_LOG_TRIVIAL(warning) << "PartPlate::build_plate_config: Filament preset '" << filament_name << "' not found, using first visible";
+            filament_presets.push_back(preset_bundle->filaments.first_visible());
+        }
+    }
+
+    // Construct the full config using PresetBundle's static method
+    DynamicPrintConfig full_config = PresetBundle::construct_full_config(
+        *printer_preset,
+        print_preset,
+        preset_bundle->project_config,
+        filament_presets,
+        true,  // apply_extruder
+        std::nullopt  // filament_maps_new
+    );
+
+    // Return a new config (caller owns it)
+    return new DynamicPrintConfig(full_config);
 }
 
 //get the print's object, result and index
@@ -5951,6 +6042,9 @@ int PartPlateList::store_to_3mf_structure(PlateDataPtrs& plate_data_list, bool w
 		plate_data_item->locked = m_plate_list[i]->m_locked;
 		plate_data_item->plate_index = m_plate_list[i]->m_plate_index;
 		plate_data_item->plate_name  = m_plate_list[i]->get_plate_name();
+		// Orca: Per-plate printer and filament presets
+		plate_data_item->printer_preset = m_plate_list[i]->get_printer_preset_name();
+		plate_data_item->filament_presets = m_plate_list[i]->get_filament_preset_names();
 		BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": plate %1% before load, width %2%, height %3%, size %4%!")
 			%(i+1) %m_plate_list[i]->thumbnail_data.width %m_plate_list[i]->thumbnail_data.height %m_plate_list[i]->thumbnail_data.pixels.size();
 		plate_data_item->plate_thumbnail.load_from(m_plate_list[i]->thumbnail_data);
@@ -6039,6 +6133,9 @@ int PartPlateList::load_from_3mf_structure(PlateDataPtrs& plate_data_list, int f
 		m_plate_list[index]->m_locked = plate_data_list[i]->locked;
 		m_plate_list[index]->config()->apply(plate_data_list[i]->config);
 		m_plate_list[index]->set_plate_name(plate_data_list[i]->plate_name);
+		// Orca: Per-plate printer and filament presets
+		m_plate_list[index]->set_printer_preset_name(plate_data_list[i]->printer_preset);
+		m_plate_list[index]->set_filament_preset_names(plate_data_list[i]->filament_presets);
 		if (plate_data_list[i]->plate_index != index)
 		{
 			BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format(":plate index %1% seems invalid, skip it")% plate_data_list[i]->plate_index;

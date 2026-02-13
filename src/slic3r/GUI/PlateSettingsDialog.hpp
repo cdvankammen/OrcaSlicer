@@ -156,9 +156,22 @@ public:
         return false;
     }
 
+    // Orca: Per-plate printer and filament presets
+    void sync_printer_preset(const std::string& preset_name);
+    void sync_filament_presets(const std::vector<std::string>& preset_names);
+    std::string get_printer_preset() const;
+    std::vector<std::string> get_filament_presets() const;
+    bool has_custom_printer_preset() const;
+    bool has_custom_filament_presets() const;
+
 protected:
     void add_layers();
     void delete_layers();
+    // Orca: Populate preset dropdowns
+    void populate_printer_presets();
+    void populate_filament_presets();
+    void on_printer_preset_changed(wxCommandEvent& evt);
+    void on_filament_preset_changed(wxCommandEvent& evt);
 
 protected:
     ComboBox* m_bed_type_choice { nullptr };
@@ -169,6 +182,13 @@ protected:
     DragCanvas* m_drag_canvas;
     OtherLayersSeqPanel* m_other_layers_seq_panel;
     TextInput *m_ti_plate_name;
+
+    // Orca: Per-plate printer and filament preset controls
+    wxCheckBox* m_use_custom_printer_checkbox { nullptr };
+    ComboBox* m_printer_preset_choice { nullptr };
+    wxCheckBox* m_use_custom_filaments_checkbox { nullptr };
+    std::vector<ComboBox*> m_filament_preset_choices;
+    wxBoxSizer* m_filament_sizer { nullptr };
 };
 
 class PlateNameEditDialog : public DPIDialog

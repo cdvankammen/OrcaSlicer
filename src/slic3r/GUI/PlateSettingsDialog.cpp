@@ -435,6 +435,53 @@ PlateSettingsDialog::PlateSettingsDialog(wxWindow* parent, const wxString& title
     top_sizer->Add(spiral_mode_txt, 0, wxALIGN_CENTER_VERTICAL | wxALIGN_LEFT | wxTOP | wxBOTTOM, FromDIP(5));
     top_sizer->Add(m_spiral_mode_choice, 0, wxALIGN_CENTER_VERTICAL | wxALIGN_RIGHT | wxTOP | wxBOTTOM, FromDIP(5));
 
+    // Orca: Per-plate printer preset
+    m_use_custom_printer_checkbox = new wxCheckBox(this, wxID_ANY, _L("Custom printer for this plate"));
+    m_use_custom_printer_checkbox->SetFont(Label::Body_14);
+    m_printer_preset_choice = new ComboBox(this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(FromDIP(240), -1), 0, NULL, wxCB_READONLY);
+    m_printer_preset_choice->Disable();  // Initially disabled until checkbox is checked
+
+    m_use_custom_printer_checkbox->Bind(wxEVT_CHECKBOX, [this](wxCommandEvent& e) {
+        m_printer_preset_choice->Enable(e.IsChecked());
+        if (!e.IsChecked()) {
+            // Reset to "Same as Global" when unchecked
+            if (m_printer_preset_choice->GetCount() > 0)
+                m_printer_preset_choice->SetSelection(0);
+        }
+    });
+
+    populate_printer_presets();
+
+    top_sizer->Add(m_use_custom_printer_checkbox, 0, wxALIGN_CENTER_VERTICAL | wxALIGN_LEFT | wxTOP | wxBOTTOM, FromDIP(5));
+    top_sizer->Add(m_printer_preset_choice, 0, wxALIGN_CENTER_VERTICAL | wxALIGN_RIGHT | wxTOP | wxBOTTOM, FromDIP(5));
+
+    // Orca: Per-plate filament presets
+    m_use_custom_filaments_checkbox = new wxCheckBox(this, wxID_ANY, _L("Custom filaments for this plate"));
+    m_use_custom_filaments_checkbox->SetFont(Label::Body_14);
+
+    // Create a vertical sizer for filament dropdowns
+    m_filament_sizer = new wxBoxSizer(wxVERTICAL);
+    populate_filament_presets();
+
+    // Initially disable all filament dropdowns
+    for (auto* combo : m_filament_preset_choices) {
+        combo->Disable();
+    }
+
+    m_use_custom_filaments_checkbox->Bind(wxEVT_CHECKBOX, [this](wxCommandEvent& e) {
+        bool enabled = e.IsChecked();
+        for (auto* combo : m_filament_preset_choices) {
+            combo->Enable(enabled);
+            if (!enabled && combo->GetCount() > 0) {
+                // Reset to "Same as Global" when unchecked
+                combo->SetSelection(0);
+            }
+        }
+    });
+
+    top_sizer->Add(m_use_custom_filaments_checkbox, 0, wxALIGN_CENTER_VERTICAL | wxALIGN_LEFT | wxTOP | wxBOTTOM, FromDIP(5));
+    top_sizer->Add(m_filament_sizer, 0, wxALIGN_CENTER_VERTICAL | wxALIGN_RIGHT | wxTOP | wxBOTTOM, FromDIP(5));
+
     // First layer filament sequence
     m_first_layer_print_seq_choice = new ComboBox(this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(FromDIP(240), -1), 0, NULL, wxCB_READONLY);
     m_first_layer_print_seq_choice->Append(_L("Auto"));
@@ -711,6 +758,202 @@ void PlateNameEditDialog::set_plate_name(const wxString &name) {
     m_ti_plate_name->GetTextCtrl()->SetValue(name);
     m_ti_plate_name->GetTextCtrl()->SetFocus();
     m_ti_plate_name->GetTextCtrl()->SetInsertionPointEnd();
+}
+
+// Orca: Per-plate printer and filament preset methods
+
+void PlateSettingsDialog::populate_printer_presets()
+{
+    if (!m_printer_preset_choice) return;
+
+    m_printer_preset_choice->Clear();
+    m_printer_preset_choice->Append(_L("Same as Global"));
+
+    // Get printer presets from PresetBundle
+    PresetBundle* preset_bundle = wxGetApp().preset_bundle;
+    if (!preset_bundle) return;
+
+    const PresetCollection& printers = preset_bundle->printers;
+    for (const Preset& preset : printers.get_presets()) {
+        if (preset.is_visible && !preset.is_default) {
+            m_printer_preset_choice->Append(wxString::FromUTF8(preset.name));
+        }
+    }
+
+    m_printer_preset_choice->SetSelection(0);  // Default to "Same as Global"
+}
+
+void PlateSettingsDialog::populate_filament_presets()
+{
+    if (!m_filament_sizer) return;
+
+    // Clear existing controls
+    m_filament_sizer->Clear(true);
+    m_filament_preset_choices.clear();
+
+    // Get number of extruders from current printer
+    PresetBundle* preset_bundle = wxGetApp().preset_bundle;
+    if (!preset_bundle) return;
+
+    int extruder_count = preset_bundle->get_printer_extruder_count();
+    if (extruder_count == 0) extruder_count = 1;  // At least 1 extruder
+
+    // Create dropdown for each extruder
+    for (int i = 0; i < extruder_count; ++i) {
+        wxBoxSizer* extruder_sizer = new wxBoxSizer(wxHORIZONTAL);
+
+        // Label
+        wxString label = wxString::Format(_L("Extruder %d:"), i + 1);
+        wxStaticText* extruder_label = new wxStaticText(this, wxID_ANY, label);
+        extruder_label->SetFont(Label::Body_13);
+        extruder_sizer->Add(extruder_label, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, FromDIP(10));
+
+        // Dropdown
+        ComboBox* filament_choice = new ComboBox(this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(FromDIP(180), -1), 0, NULL, wxCB_READONLY);
+        filament_choice->Append(_L("Same as Global"));
+
+        // Populate with filament presets
+        const PresetCollection& filaments = preset_bundle->filaments;
+        for (const Preset& preset : filaments.get_presets()) {
+            if (preset.is_visible && !preset.is_default) {
+                filament_choice->Append(wxString::FromUTF8(preset.name));
+            }
+        }
+
+        filament_choice->SetSelection(0);  // Default to "Same as Global"
+        extruder_sizer->Add(filament_choice, 1, wxALIGN_CENTER_VERTICAL);
+
+        m_filament_preset_choices.push_back(filament_choice);
+        m_filament_sizer->Add(extruder_sizer, 0, wxEXPAND | wxBOTTOM, FromDIP(5));
+    }
+}
+
+void PlateSettingsDialog::sync_printer_preset(const std::string& preset_name)
+{
+    if (!m_printer_preset_choice || !m_use_custom_printer_checkbox) return;
+
+    if (preset_name.empty()) {
+        // No custom preset
+        m_use_custom_printer_checkbox->SetValue(false);
+        m_printer_preset_choice->Disable();
+        m_printer_preset_choice->SetSelection(0);
+    } else {
+        // Custom preset
+        m_use_custom_printer_checkbox->SetValue(true);
+        m_printer_preset_choice->Enable();
+
+        // Find the preset in the list
+        int selection = m_printer_preset_choice->FindString(wxString::FromUTF8(preset_name));
+        if (selection != wxNOT_FOUND) {
+            m_printer_preset_choice->SetSelection(selection);
+        } else {
+            // Preset not found, fallback to "Same as Global"
+            m_printer_preset_choice->SetSelection(0);
+        }
+    }
+}
+
+void PlateSettingsDialog::sync_filament_presets(const std::vector<std::string>& preset_names)
+{
+    if (!m_use_custom_filaments_checkbox) return;
+
+    if (preset_names.empty()) {
+        // No custom presets
+        m_use_custom_filaments_checkbox->SetValue(false);
+        for (auto* combo : m_filament_preset_choices) {
+            combo->Disable();
+            combo->SetSelection(0);
+        }
+    } else {
+        // Custom presets
+        m_use_custom_filaments_checkbox->SetValue(true);
+
+        // Sync each extruder's preset
+        for (size_t i = 0; i < m_filament_preset_choices.size() && i < preset_names.size(); ++i) {
+            ComboBox* combo = m_filament_preset_choices[i];
+            combo->Enable();
+
+            int selection = combo->FindString(wxString::FromUTF8(preset_names[i]));
+            if (selection != wxNOT_FOUND) {
+                combo->SetSelection(selection);
+            } else {
+                combo->SetSelection(0);  // Fallback to "Same as Global"
+            }
+        }
+
+        // If more dropdowns than presets, enable remaining and set to global
+        for (size_t i = preset_names.size(); i < m_filament_preset_choices.size(); ++i) {
+            m_filament_preset_choices[i]->Enable();
+            m_filament_preset_choices[i]->SetSelection(0);
+        }
+    }
+}
+
+std::string PlateSettingsDialog::get_printer_preset() const
+{
+    if (!m_use_custom_printer_checkbox || !m_use_custom_printer_checkbox->GetValue()) {
+        return "";  // Not using custom printer
+    }
+
+    if (!m_printer_preset_choice || m_printer_preset_choice->GetSelection() == 0) {
+        return "";  // "Same as Global" selected
+    }
+
+    wxString preset_name = m_printer_preset_choice->GetStringSelection();
+    return preset_name.ToStdString();
+}
+
+std::vector<std::string> PlateSettingsDialog::get_filament_presets() const
+{
+    if (!m_use_custom_filaments_checkbox || !m_use_custom_filaments_checkbox->GetValue()) {
+        return std::vector<std::string>();  // Not using custom filaments
+    }
+
+    std::vector<std::string> presets;
+    for (const auto* combo : m_filament_preset_choices) {
+        if (combo && combo->GetSelection() > 0) {
+            // Selection > 0 means not "Same as Global"
+            presets.push_back(combo->GetStringSelection().ToStdString());
+        } else {
+            // "Same as Global" selected, use empty string
+            presets.push_back("");
+        }
+    }
+
+    // If all are empty, return empty vector (means use global)
+    bool all_empty = true;
+    for (const std::string& preset : presets) {
+        if (!preset.empty()) {
+            all_empty = false;
+            break;
+        }
+    }
+
+    if (all_empty) {
+        return std::vector<std::string>();
+    }
+
+    return presets;
+}
+
+bool PlateSettingsDialog::has_custom_printer_preset() const
+{
+    return m_use_custom_printer_checkbox && m_use_custom_printer_checkbox->GetValue();
+}
+
+bool PlateSettingsDialog::has_custom_filament_presets() const
+{
+    return m_use_custom_filaments_checkbox && m_use_custom_filaments_checkbox->GetValue();
+}
+
+void PlateSettingsDialog::on_printer_preset_changed(wxCommandEvent& evt)
+{
+    // Could add validation here if needed
+}
+
+void PlateSettingsDialog::on_filament_preset_changed(wxCommandEvent& evt)
+{
+    // Could add validation here if needed
 }
 
 
