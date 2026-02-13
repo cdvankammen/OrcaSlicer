@@ -427,6 +427,11 @@ public:
     void split_instances();
     void rename_item();
     void fix_through_netfabb();
+
+    // Orca: Group operations
+    void create_group_from_selection();
+    void ungroup_volumes();
+    void on_group_extruder_selection(wxCommandEvent& event);
     void simplify();
     void smooth_mesh();
     void update_item_error_icon(const int obj_idx, int vol_idx) const ;

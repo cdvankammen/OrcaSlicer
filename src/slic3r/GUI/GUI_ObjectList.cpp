@@ -1562,9 +1562,54 @@ void ObjectList::show_context_menu(const bool evt_context_menu)
         if (item)
         {
             const ItemType type = m_objects_model->GetItemType(item);
-            if (!(type & (itPlate | itObject | itVolume | itInstance)))
+            if (!(type & (itPlate | itObject | itVolume | itInstance | itVolumeGroup)))
                 return;
-            if (type & itVolume) {
+
+            // Orca: Handle volume group
+            if (type & itVolumeGroup) {
+                menu = new wxMenu();
+                int obj_idx = m_objects_model->GetObjectIdByItem(item);
+                int group_id = m_objects_model->GetGroupIdByItem(item);
+
+                if (obj_idx >= 0 && group_id >= 0) {
+                    ModelObject* obj = (*m_objects)[obj_idx];
+                    ModelVolumeGroup* group = obj->get_volume_group_by_id(group_id);
+
+                    if (group) {
+                        // Rename
+                        append_menu_item(menu, wxID_ANY, _(L("Rename")), "",
+                            [this](wxCommandEvent&) { rename_item(); }, "", nullptr);
+
+                        menu->AppendSeparator();
+
+                        // Set extruder submenu
+                        wxMenu* extruder_menu = new wxMenu();
+                        extruder_menu->Append(wxID_ANY + 1000, _(L("Default")));
+
+                        size_t extruders_count = wxGetApp().plater()->printer_technology() == ptSLA ? 1 :
+                            wxGetApp().extruders_edited_cnt();
+
+                        for (size_t i = 0; i < extruders_count; ++i) {
+                            extruder_menu->Append(wxID_ANY + 1001 + i,
+                                wxString::Format(_(L("Extruder %d")), i + 1));
+                        }
+
+                        extruder_menu->Bind(wxEVT_MENU, &ObjectList::on_group_extruder_selection, this);
+                        menu->AppendSubMenu(extruder_menu, _(L("Set extruder")));
+
+                        menu->AppendSeparator();
+
+                        // Ungroup
+                        append_menu_item(menu, wxID_ANY, _(L("Ungroup")), "",
+                            [this](wxCommandEvent&) { ungroup_volumes(); }, "", nullptr);
+
+                        // Delete
+                        append_menu_item(menu, wxID_ANY, _(L("Delete group")), "",
+                            [this](wxCommandEvent&) { remove(); }, "", nullptr);
+                    }
+                }
+            }
+            else if (type & itVolume) {
                 int obj_idx, vol_idx;
                 get_selected_item_indexes(obj_idx, vol_idx, item);
                 if (obj_idx < 0 || vol_idx < 0)
@@ -1574,16 +1619,35 @@ void ObjectList::show_context_menu(const bool evt_context_menu)
                 menu = volume->is_text() ? plater->text_part_menu() :
 			volume->is_svg() ? plater->svg_part_menu() : // ORCA fixes missing "Edit SVG" item for Add/Negative/Modifier SVG objects in object list
                     plater->part_menu();
+
+                // Orca: Add "Create group from selection" for multiple volumes
+                wxDataViewItemArray sels;
+                GetSelections(sels);
+                if (!sels.IsEmpty()) {
+                    int volume_count = 0;
+                    for (const auto& sel_item : sels) {
+                        if (m_objects_model->GetItemType(sel_item) == itVolume)
+                            volume_count++;
+                    }
+
+                    if (volume_count >= 2) {
+                        menu->AppendSeparator();
+                        append_menu_item(menu, wxID_ANY, _(L("Create group from selection")), "",
+                            [this](wxCommandEvent&) { create_group_from_selection(); }, "", nullptr);
+                    }
+                }
             }
-            else
+            else {
                 menu =  type & itPlate                                              ? plater->plate_menu() :
                         type & itInstance                                           ? plater->instance_menu() :
                         printer_technology() == ptFFF                               ? plater->object_menu() : plater->sla_object_menu();
+            }
+
             plater->SetPlateIndexByRightMenuInLeftUI(-1);
             if (type & itPlate) {
                 int            plate_idx = -1;
                 const ItemType type0      = m_objects_model->GetItemType(item, plate_idx);
-                if (plate_idx >= 0) { 
+                if (plate_idx >= 0) {
                     plater->SetPlateIndexByRightMenuInLeftUI(plate_idx);
                 }
             }
@@ -4045,9 +4109,61 @@ wxDataViewItemArray ObjectList::add_volumes_to_object_in_list(size_t obj_idx, st
             }
         }
         int ui_volume_idx = 0;
+
+        // Orca: Add groups first
+        for (const auto& group : object->volume_groups) {
+            // Create group node
+            wxString group_name = from_u8(group->name);
+            wxString extruder_str = group->extruder_id >= 0 ?
+                wxString::Format("%d", group->extruder_id + 1) : wxEmptyString;
+
+            const wxDataViewItem group_item = m_objects_model->GetGroupItem(obj_idx, group->id);
+
+            // Only add if not already present
+            if (!group_item.IsOk()) {
+                const auto group_node = new ObjectDataViewModelNode(
+                    static_cast<ObjectDataViewModelNode*>(object_item.GetID()),
+                    group_name,
+                    group->id,
+                    extruder_str
+                );
+                m_objects_model->AddChild(object_item, group_node);
+                const wxDataViewItem new_group_item(group_node);
+
+                // Add volumes that belong to this group
+                for (const ModelVolume* vol : group->volumes) {
+                    ++volume_idx;
+                    if (object->is_cut() && vol->is_cut_connector())
+                        continue;
+
+                    const wxDataViewItem &vol_item = m_objects_model->AddVolumeChild(
+                        new_group_item,
+                        from_u8(vol->name),
+                        vol->type(),
+                        vol->is_text(),
+                        vol->is_svg(),
+                        get_warning_icon_name(vol->mesh().stats()),
+                        vol->config.has("extruder") ? vol->config.extruder() : 0,
+                        false);
+                    ui_and_3d_volume_map[obj_idx][ui_volume_idx] = volume_idx;
+                    ui_volume_idx++;
+                    add_settings_item(vol_item, &vol->config.get());
+
+                    if (add_to_selection && add_to_selection(vol))
+                        items.Add(vol_item);
+                }
+                Expand(new_group_item);
+            }
+        }
+
+        // Add ungrouped volumes directly to object
         for (const ModelVolume *volume : object->volumes) {
             ++volume_idx;
             if (object->is_cut() && volume->is_cut_connector())
+                continue;
+
+            // Skip grouped volumes (already added above)
+            if (volume->is_grouped())
                 continue;
 
             const wxDataViewItem &vol_item = m_objects_model->AddVolumeChild(
@@ -4889,7 +5005,30 @@ void ObjectList::update_selections_on_canvas()
         const ItemType& type = m_objects_model->GetItemType(item);
         const int obj_idx = m_objects_model->GetObjectIdByItem(item);
 
-        if (type == itVolume) {
+        // Orca: Handle volume group selection
+        if (type == itVolumeGroup) {
+            int group_id = m_objects_model->GetGroupIdByItem(item);
+            if (obj_idx >= 0 && group_id >= 0) {
+                ModelObject* obj = (*m_objects)[obj_idx];
+                ModelVolumeGroup* group = obj->get_volume_group_by_id(group_id);
+                if (group) {
+                    mode = Selection::Volume;
+                    // Select all volumes in the group
+                    for (const ModelVolume* vol : group->volumes) {
+                        // Find volume index
+                        for (size_t v = 0; v < obj->volumes.size(); ++v) {
+                            if (obj->volumes[v] == vol) {
+                                int vol_idx = m_objects_model->get_real_volume_index_in_3d(obj_idx, v);
+                                std::vector<unsigned int> idxs = selection.get_volume_idxs_from_volume(obj_idx, std::max(instance_idx, 0), vol_idx);
+                                volume_idxs.insert(volume_idxs.end(), idxs.begin(), idxs.end());
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        else if (type == itVolume) {
             int vol_idx = m_objects_model->GetVolumeIdByItem(item);
             vol_idx                        = m_objects_model->get_real_volume_index_in_3d(obj_idx,vol_idx);
             std::vector<unsigned int> idxs = selection.get_volume_idxs_from_volume(obj_idx, std::max(instance_idx, 0), vol_idx);
@@ -5763,7 +5902,7 @@ void ObjectList::split_instances()
 void ObjectList::rename_item()
 {
     const wxDataViewItem item = GetSelection();
-    if (!item || !(m_objects_model->GetItemType(item) & (itVolume | itObject)))
+    if (!item || !(m_objects_model->GetItemType(item) & (itVolume | itObject | itVolumeGroup)))
         return ;
 
     const wxString new_name = wxGetTextFromUser(_(L("Enter new name"))+":", _(L("Renaming")),
@@ -5777,8 +5916,204 @@ void ObjectList::rename_item()
         return;
     }
 
-    if (m_objects_model->SetName(new_name, item))
+    // Orca: Handle group renaming
+    ItemType type = m_objects_model->GetItemType(item);
+    if (type == itVolumeGroup) {
+        int obj_idx = m_objects_model->GetObjectIdByItem(item);
+        int group_id = m_objects_model->GetGroupIdByItem(item);
+
+        if (obj_idx >= 0 && group_id >= 0) {
+            ModelObject* obj = (*m_objects)[obj_idx];
+            ModelVolumeGroup* group = obj->get_volume_group_by_id(group_id);
+
+            if (group) {
+                group->name = new_name.ToStdString();
+                m_objects_model->SetName(new_name, item);
+                wxGetApp().plater()->changed_object(obj_idx);
+            }
+        }
+    }
+    else if (m_objects_model->SetName(new_name, item))
         update_name_in_model(item);
+}
+
+// Orca: Create group from selected volumes
+void ObjectList::create_group_from_selection()
+{
+    wxDataViewItemArray sels;
+    GetSelections(sels);
+    if (sels.IsEmpty())
+        return;
+
+    // Collect selected volumes
+    std::vector<ModelVolume*> volumes;
+    int obj_idx = -1;
+
+    for (const auto& item : sels) {
+        ItemType type = m_objects_model->GetItemType(item);
+        if (type != itVolume)
+            continue;
+
+        int current_obj_idx = m_objects_model->GetObjectIdByItem(item);
+        if (obj_idx < 0) {
+            obj_idx = current_obj_idx;
+        } else if (obj_idx != current_obj_idx) {
+            // Volumes must be from the same object
+            wxMessageBox(_(L("All volumes must be from the same object")),
+                         _(L("Create Group")), wxICON_WARNING);
+            return;
+        }
+
+        int vol_idx = m_objects_model->GetVolumeIdByItem(item);
+        if (vol_idx < 0)
+            continue;
+
+        ModelObject* obj = (*m_objects)[obj_idx];
+        if (vol_idx < (int)obj->volumes.size()) {
+            volumes.push_back(obj->volumes[vol_idx]);
+        }
+    }
+
+    if (volumes.size() < 2 || obj_idx < 0) {
+        wxMessageBox(_(L("Select at least 2 volumes to create a group")),
+                     _(L("Create Group")), wxICON_WARNING);
+        return;
+    }
+
+    ModelObject* obj = (*m_objects)[obj_idx];
+
+    // Prompt for group name
+    wxTextEntryDialog dialog(this, _(L("Enter group name:")),
+                            _(L("Create Group")),
+                            wxString::Format("Group %d", (int)obj->volume_groups.size() + 1));
+
+    if (dialog.ShowModal() != wxID_OK)
+        return;
+
+    wxString group_name = dialog.GetValue();
+    if (group_name.IsEmpty())
+        group_name = "Group";
+
+    // Take snapshot for undo
+    take_snapshot("Create Group");
+
+    // Create group
+    ModelVolumeGroup* group = obj->add_volume_group(group_name.ToStdString());
+
+    // Move volumes to group
+    for (auto vol : volumes) {
+        obj->move_volume_to_group(vol, group);
+    }
+
+    // Update tree
+    add_volumes_to_object_in_list(obj_idx);
+
+    // Select the new group
+    const wxDataViewItem group_item = m_objects_model->GetGroupItem(obj_idx, group->id);
+    if (group_item.IsOk()) {
+        UnselectAll();
+        Select(group_item);
+        selection_changed();
+    }
+
+    // Mark as modified
+    wxGetApp().plater()->changed_object(obj_idx);
+}
+
+// Orca: Ungroup volumes
+void ObjectList::ungroup_volumes()
+{
+    const wxDataViewItem item = GetSelection();
+    if (!item.IsOk())
+        return;
+
+    ItemType type = m_objects_model->GetItemType(item);
+    if (type != itVolumeGroup)
+        return;
+
+    int obj_idx = m_objects_model->GetObjectIdByItem(item);
+    int group_id = m_objects_model->GetGroupIdByItem(item);
+
+    if (obj_idx < 0 || group_id < 0)
+        return;
+
+    ModelObject* obj = (*m_objects)[obj_idx];
+    ModelVolumeGroup* group = obj->get_volume_group_by_id(group_id);
+
+    if (!group)
+        return;
+
+    // Confirm
+    wxString msg = wxString::Format(
+        _(L("Ungroup '%s'?\nVolumes will remain but group will be deleted.")),
+        from_u8(group->name));
+
+    wxMessageDialog confirm(this, msg, _(L("Confirm Ungroup")),
+                           wxYES_NO | wxICON_QUESTION);
+
+    if (confirm.ShowModal() != wxID_YES)
+        return;
+
+    // Take snapshot for undo
+    take_snapshot("Ungroup");
+
+    // Copy volume list before modifying
+    std::vector<ModelVolume*> vols_copy = group->volumes;
+
+    // Move volumes out of group
+    for (auto vol : vols_copy) {
+        obj->move_volume_out_of_group(vol);
+    }
+
+    // Delete group
+    obj->delete_volume_group(group);
+
+    // Update tree
+    add_volumes_to_object_in_list(obj_idx);
+
+    // Mark as modified
+    wxGetApp().plater()->changed_object(obj_idx);
+}
+
+// Orca: Set group extruder from menu selection
+void ObjectList::on_group_extruder_selection(wxCommandEvent& event)
+{
+    const wxDataViewItem item = GetSelection();
+    if (!item.IsOk())
+        return;
+
+    int obj_idx = m_objects_model->GetObjectIdByItem(item);
+    int group_id = m_objects_model->GetGroupIdByItem(item);
+
+    if (obj_idx < 0 || group_id < 0)
+        return;
+
+    ModelObject* obj = (*m_objects)[obj_idx];
+    ModelVolumeGroup* group = obj->get_volume_group_by_id(group_id);
+
+    if (!group)
+        return;
+
+    int menu_id = event.GetId();
+    int extruder = menu_id - (wxID_ANY + 1001);  // Calculate extruder index
+
+    if (extruder < -1)
+        extruder = -1;  // Default
+
+    // Take snapshot for undo
+    take_snapshot("Change Extruder");
+
+    // Set group extruder
+    group->extruder_id = extruder;
+
+    // Update display
+    wxString extruder_str = extruder >= 0 ?
+        wxString::Format("%d", extruder + 1) : wxEmptyString;
+
+    m_objects_model->SetExtruder(extruder_str, item);
+
+    // Mark as modified
+    wxGetApp().plater()->changed_object(obj_idx);
 }
 
 void ObjectList::fix_through_netfabb()

@@ -401,6 +401,111 @@ void Selection::remove_volumes(EMode mode, const std::vector<unsigned int>& volu
     this->set_bounding_boxes_dirty();
 }
 
+// Orca: Group selection support
+void Selection::add_volume_group(const ModelVolumeGroup* group)
+{
+    if (!m_valid || !group)
+        return;
+
+    // Clear existing selection
+    clear();
+
+    // Store group reference
+    m_selected_group = group;
+
+    // Select all volumes in the group
+    m_mode = Volume;
+    for (const ModelVolume* vol : group->volumes) {
+        if (!vol)
+            continue;
+
+        // Find the GLVolume index for this ModelVolume
+        int obj_idx = -1;
+        int vol_idx = -1;
+
+        // Find which object this volume belongs to
+        for (size_t o = 0; o < m_model->objects.size(); ++o) {
+            const ModelObject* obj = m_model->objects[o];
+            for (size_t v = 0; v < obj->volumes.size(); ++v) {
+                if (obj->volumes[v] == vol) {
+                    obj_idx = static_cast<int>(o);
+                    vol_idx = static_cast<int>(v);
+                    break;
+                }
+            }
+            if (obj_idx >= 0)
+                break;
+        }
+
+        if (obj_idx >= 0 && vol_idx >= 0) {
+            // Find all GLVolume instances for this volume and add them
+            for (unsigned int i = 0; i < m_volumes->size(); ++i) {
+                const GLVolume* glvol = (*m_volumes)[i];
+                if (glvol->object_idx() == obj_idx && glvol->volume_idx() == vol_idx) {
+                    do_add_volume(i);
+                }
+            }
+        }
+    }
+
+    update_type();
+    set_bounding_boxes_dirty();
+}
+
+void Selection::remove_volume_group(const ModelVolumeGroup* group)
+{
+    if (!m_valid || !group)
+        return;
+
+    if (m_selected_group == group) {
+        clear();
+        m_selected_group = nullptr;
+    }
+}
+
+BoundingBoxf3 Selection::get_group_bounding_box(const ModelVolumeGroup* group) const
+{
+    BoundingBoxf3 bbox;
+
+    if (!group || !m_valid)
+        return bbox;
+
+    // Calculate bounding box from all volumes in the group
+    for (const ModelVolume* vol : group->volumes) {
+        if (!vol)
+            continue;
+
+        // Find the GLVolume for this ModelVolume
+        int obj_idx = -1;
+        int vol_idx = -1;
+
+        for (size_t o = 0; o < m_model->objects.size(); ++o) {
+            const ModelObject* obj = m_model->objects[o];
+            for (size_t v = 0; v < obj->volumes.size(); ++v) {
+                if (obj->volumes[v] == vol) {
+                    obj_idx = static_cast<int>(o);
+                    vol_idx = static_cast<int>(v);
+                    break;
+                }
+            }
+            if (obj_idx >= 0)
+                break;
+        }
+
+        if (obj_idx >= 0 && vol_idx >= 0) {
+            // Merge bounding boxes from all GLVolume instances
+            for (unsigned int i = 0; i < m_volumes->size(); ++i) {
+                const GLVolume* glvol = (*m_volumes)[i];
+                if (glvol->object_idx() == obj_idx && glvol->volume_idx() == vol_idx) {
+                    bbox.merge(glvol->transformed_convex_hull_bounding_box());
+                }
+            }
+        }
+    }
+
+    return bbox;
+}
+
 ModelVolume *Selection::get_selected_single_volume(int &out_object_idx, int &out_volume_idx) const
 {
     if (is_single_volume() || is_single_modifier()) {
@@ -667,6 +772,9 @@ void Selection::clear()
 #endif // ENABLE_MODIFIERS_ALWAYS_TRANSPARENT
 
     m_list.clear();
+
+    // Orca: Clear group selection
+    m_selected_group = nullptr;
 
     update_type();
     set_bounding_boxes_dirty();
@@ -1927,8 +2035,18 @@ void Selection::render(float scale_factor)
     m_scale_factor = scale_factor;
     // render cumulative bounding box of selected volumes
     const auto& [box, trafo] = get_bounding_box_in_current_reference_system();
-    render_bounding_box(box, trafo, 
+    render_bounding_box(box, trafo,
         wxGetApp().plater()->canvas3D()->get_canvas_type() == GLCanvas3D::ECanvasType::CanvasAssembleView ? ColorRGB::YELLOW(): ColorRGB::WHITE());
+
+    // Orca: Render group bounding box if a group is selected
+    if (has_selected_group()) {
+        BoundingBoxf3 group_box = get_group_bounding_box(m_selected_group);
+        if (!group_box.empty()) {
+            // Render with dashed lines and a distinct color (e.g., cyan)
+            render_bounding_box(group_box, Transform3d::Identity(), ColorRGB::CYAN());
+        }
+    }
+
     render_synchronized_volumes();
 }
 

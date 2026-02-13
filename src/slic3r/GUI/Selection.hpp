@@ -14,6 +14,7 @@ class Shader;
 class Model;
 class ModelObject;
 class ModelVolume;
+class ModelVolumeGroup;
 class ObjectID;
 class ModelInstance;
 class GLVolume;
@@ -194,6 +195,9 @@ private:
     EMode m_volume_selection_mode{ Instance };
     bool m_volume_selection_locked { false };
 
+    // Orca: Group selection support
+    const ModelVolumeGroup* m_selected_group{nullptr};
+
 public:
     Selection();
 
@@ -293,6 +297,14 @@ public:
     // Returns the indices of selected instances.
     // Can only be called if selection is from a single object.
     const InstanceIdxsList& get_instance_idxs() const;
+
+    // Orca: Group selection methods
+    bool has_selected_group() const { return m_selected_group != nullptr; }
+    const ModelVolumeGroup* get_selected_group() const { return m_selected_group; }
+    void add_volume_group(const ModelVolumeGroup* group);
+    void remove_volume_group(const ModelVolumeGroup* group);
+    void clear_group_selection() { m_selected_group = nullptr; }
+    BoundingBoxf3 get_group_bounding_box(const ModelVolumeGroup* group) const;
 
     const IndicesList& get_volume_idxs() const { return m_list; }
     const GLVolume* get_volume(unsigned int volume_idx) const;
