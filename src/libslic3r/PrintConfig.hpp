@@ -1533,6 +1533,9 @@ PRINT_CONFIG_CLASS_DERIVED_DEFINE(
     // BBS: wipe tower is only used for priming
     ((ConfigOptionFloat,              prime_volume))
     ((ConfigOptionFloats,             flush_multiplier))
+    // Orca: per-filament flush target selection
+    ((ConfigOptionInts,               support_flush_filaments))
+    ((ConfigOptionInts,               infill_flush_filaments))
     ((ConfigOptionFloat,              z_offset))
     // BBS: project filaments
     ((ConfigOptionFloats,             filament_colour_new))

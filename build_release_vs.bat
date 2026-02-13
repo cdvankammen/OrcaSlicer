@@ -15,11 +15,27 @@ if "%USE_NINJA%"=="1" (
     goto :generator_ready
 )
 
-@REM Detect Visual Studio version using msbuild
-echo Detecting Visual Studio version using msbuild...
+@REM Detect Visual Studio version using vswhere (preferred) or msbuild
+echo Detecting Visual Studio version...
 
-@REM Try to get MSBuild version - the output format varies by VS version
 set VS_MAJOR=
+set VSWHERE="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+
+@REM Try vswhere first (most reliable method)
+if exist %VSWHERE% (
+    echo Using vswhere to detect Visual Studio...
+    for /f "usebackq tokens=*" %%i in (`%VSWHERE% -latest -property installationVersion`) do (
+        set VS_VERSION_FULL=%%i
+        for /f "tokens=1 delims=." %%a in ("%%i") do set VS_MAJOR=%%a
+    )
+    if not "%VS_MAJOR%"=="" (
+        echo Visual Studio version detected: %VS_VERSION_FULL% (major: %VS_MAJOR%)
+        goto :version_found
+    )
+)
+
+@REM Fallback: Try to get MSBuild version
+echo Trying MSBuild detection...
 for /f "tokens=*" %%i in ('msbuild -version 2^>^&1 ^| findstr /r "^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*"') do (
     for /f "tokens=1 delims=." %%a in ("%%i") do set VS_MAJOR=%%a
     set MSBUILD_OUTPUT=%%i
@@ -36,12 +52,15 @@ if "%VS_MAJOR%"=="" (
 )
 
 :version_found
-echo MSBuild version detected: %MSBUILD_OUTPUT%
-echo Major version: %VS_MAJOR%
-
 if "%VS_MAJOR%"=="" (
-    echo Error: Could not determine Visual Studio version from msbuild
-    echo Please ensure Visual Studio and MSBuild are properly installed
+    echo.
+    echo Error: Could not determine Visual Studio version
+    echo.
+    echo Please use one of these methods:
+    echo   1. Run this script from "Developer PowerShell for VS" or "Developer Command Prompt for VS"
+    echo   2. Install Visual Studio 2019 or 2022 with C++ Desktop Development workload
+    echo   3. Use Ninja generator: build_release_vs.bat -x
+    echo.
     exit /b 1
 )
 
@@ -52,11 +71,12 @@ if "%VS_MAJOR%"=="16" (
     set VS_VERSION=2022
     set CMAKE_GENERATOR="Visual Studio 17 2022"
 ) else if "%VS_MAJOR%"=="18" (
-    set VS_VERSION=2026
-    set CMAKE_GENERATOR="Visual Studio 18 2026"
+    @REM MSBuild 18.x is still part of VS 2022
+    set VS_VERSION=2022
+    set CMAKE_GENERATOR="Visual Studio 17 2022"
 ) else (
     echo Error: Unsupported Visual Studio version: %VS_MAJOR%
-    echo Supported versions: VS2019 (16.x^), VS2022 (17.x^), VS2026 (18.x^)
+    echo Supported versions: VS2019 (16.x^), VS2022 (17.x-18.x^)
     exit /b 1
 )
 

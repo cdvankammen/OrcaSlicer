@@ -1,0 +1,2 @@
+J:/github orca/OrcaSlicer/deps/CMakeFiles/CMakeScratch/TryCompile-6nih2r/CMakeFiles/cmTC_69bdb.dir
+J:/github orca/OrcaSlicer/deps/CMakeFiles/CMakeScratch/TryCompile-6nih2r/CMakeFiles/ALL_BUILD.dir
