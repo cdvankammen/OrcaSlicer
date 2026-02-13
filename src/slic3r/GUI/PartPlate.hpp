@@ -324,6 +324,9 @@ public:
     // Returns a new DynamicPrintConfig* if plate has custom presets (caller owns the pointer)
     DynamicPrintConfig* build_plate_config(class PresetBundle* preset_bundle) const;
 
+    // Orca: Validate per-plate preset compatibility
+    bool validate_custom_presets(class PresetBundle* preset_bundle, std::string* warning_msg = nullptr) const;
+
     void set_timelapse_warning_code(int code) { m_timelapse_warning_code = code; }
     int  timelapse_warning_code() { return m_timelapse_warning_code; }
     

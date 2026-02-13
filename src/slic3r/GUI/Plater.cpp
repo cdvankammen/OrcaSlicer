@@ -7649,14 +7649,48 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
 
     Print::ApplyStatus invalidated;
     const auto& preset_bundle = wxGetApp().preset_bundle;
+    PartPlate* cur_plate = background_process.get_current_plate();
+
+    // Orca: Build per-plate config if plate has custom presets
+    DynamicPrintConfig* plate_config = nullptr;
+    if (cur_plate) {
+        plate_config = cur_plate->build_plate_config(preset_bundle);
+        if (plate_config) {
+            BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": Using custom config for plate %1%: printer='%2%', %3% filament presets")
+                % cur_plate->get_plate_index()
+                % cur_plate->get_printer_preset_name()
+                % cur_plate->get_filament_preset_names().size();
+        }
+    }
+
     if (preset_bundle->get_printer_extruder_count() > 1) {
-        PartPlate* cur_plate = background_process.get_current_plate();
         std::vector<int> f_maps = cur_plate->get_real_filament_maps(preset_bundle->project_config);
-        invalidated = background_process.apply(this->model, preset_bundle->full_config(false, f_maps));
+
+        if (plate_config) {
+            // Use per-plate custom config
+            invalidated = background_process.apply(this->model, *plate_config);
+        } else {
+            // Use global config
+            invalidated = background_process.apply(this->model, preset_bundle->full_config(false, f_maps));
+        }
+
         background_process.fff_print()->set_extruder_filament_info(get_extruder_filament_info());
     }
-    else
-        invalidated = background_process.apply(this->model, preset_bundle->full_config(false));
+    else {
+        if (plate_config) {
+            // Use per-plate custom config
+            invalidated = background_process.apply(this->model, *plate_config);
+        } else {
+            // Use global config
+            invalidated = background_process.apply(this->model, preset_bundle->full_config(false));
+        }
+    }
+
+    // Orca: Clean up per-plate config if allocated
+    if (plate_config) {
+        delete plate_config;
+        plate_config = nullptr;
+    }
 
     if ((invalidated == Print::APPLY_STATUS_CHANGED) || (invalidated == Print::APPLY_STATUS_INVALIDATED))
         // BBS: add only gcode mode
@@ -17348,8 +17382,36 @@ void Plater::open_platesettings_dialog(wxCommandEvent& evt) {
         std::string printer_preset = dlg.get_printer_preset();
         std::vector<std::string> filament_presets = dlg.get_filament_presets();
 
+        // Temporarily set presets for validation
+        std::string old_printer_preset = curr_plate->get_printer_preset_name();
+        std::vector<std::string> old_filament_presets = curr_plate->get_filament_preset_names();
+
         curr_plate->set_printer_preset_name(printer_preset);
         curr_plate->set_filament_preset_names(filament_presets);
+
+        // Validate the presets
+        std::string validation_warning;
+        bool valid = curr_plate->validate_custom_presets(wxGetApp().preset_bundle, &validation_warning);
+
+        if (!valid && !validation_warning.empty()) {
+            // Show warning but allow user to proceed
+            wxString warning_text = wxString::Format(
+                _L("Warning: Potential compatibility issues with selected presets:\n\n%s\n\nDo you want to continue?"),
+                validation_warning);
+
+            wxMessageDialog warning_dlg(
+                this,
+                warning_text,
+                _L("Plate Preset Validation"),
+                wxYES_NO | wxICON_WARNING | wxCENTER);
+
+            if (warning_dlg.ShowModal() != wxID_YES) {
+                // User chose not to proceed, restore old presets
+                curr_plate->set_printer_preset_name(old_printer_preset);
+                curr_plate->set_filament_preset_names(old_filament_presets);
+                return;
+            }
+        }
 
         if (!printer_preset.empty() || !filament_presets.empty()) {
             BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format("Plate %1%: Custom printer='%2%', %3% filament presets")

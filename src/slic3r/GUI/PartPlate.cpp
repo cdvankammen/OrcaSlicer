@@ -2431,6 +2431,114 @@ DynamicPrintConfig* PartPlate::build_plate_config(PresetBundle* preset_bundle) c
     return new DynamicPrintConfig(full_config);
 }
 
+// Orca: Validate per-plate preset compatibility
+bool PartPlate::validate_custom_presets(PresetBundle* preset_bundle, std::string* warning_msg) const
+{
+    if (!preset_bundle)
+        return true;
+
+    // If no custom presets, no validation needed
+    if (!has_custom_printer_preset() && !has_custom_filament_presets())
+        return true;
+
+    bool has_warnings = false;
+    std::string warnings;
+
+    // Validate custom printer preset if set
+    if (has_custom_printer_preset()) {
+        std::string printer_name = get_printer_preset_name();
+        Preset* printer_preset = preset_bundle->printers.find_preset(printer_name, false);
+
+        if (!printer_preset) {
+            warnings += "Printer preset '" + printer_name + "' not found. ";
+            has_warnings = true;
+        } else {
+            // Check bed size compatibility
+            BoundingBoxf3 plate_bbox = get_bounding_box();
+            auto bed_shape = printer_preset->config.option<ConfigOptionPoints>("printable_area");
+
+            if (bed_shape && !bed_shape->values.empty()) {
+                // Get bed dimensions from printable area
+                double bed_min_x = std::numeric_limits<double>::max();
+                double bed_max_x = std::numeric_limits<double>::lowest();
+                double bed_min_y = std::numeric_limits<double>::max();
+                double bed_max_y = std::numeric_limits<double>::lowest();
+
+                for (const Vec2d& point : bed_shape->values) {
+                    bed_min_x = std::min(bed_min_x, point.x());
+                    bed_max_x = std::max(bed_max_x, point.x());
+                    bed_min_y = std::min(bed_min_y, point.y());
+                    bed_max_y = std::max(bed_max_y, point.y());
+                }
+
+                double bed_width = bed_max_x - bed_min_x;
+                double bed_depth = bed_max_y - bed_min_y;
+
+                // Check if objects exceed bed size
+                if (plate_bbox.size().x() > bed_width || plate_bbox.size().y() > bed_depth) {
+                    warnings += "Objects on plate exceed selected printer bed size (" +
+                               std::to_string((int)bed_width) + "x" + std::to_string((int)bed_depth) + "mm). ";
+                    has_warnings = true;
+                }
+            }
+
+            // Check extruder count
+            int printer_extruder_count = printer_preset->config.option<ConfigOptionInt>("extruder_count")->value;
+            std::set<int> used_extruders = get_extruders(true);
+            int max_used_extruder = used_extruders.empty() ? 1 : (*used_extruders.rbegin() + 1);
+
+            if (max_used_extruder > printer_extruder_count) {
+                warnings += "Plate uses " + std::to_string(max_used_extruder) +
+                           " extruders but selected printer only has " +
+                           std::to_string(printer_extruder_count) + ". ";
+                has_warnings = true;
+            }
+        }
+    }
+
+    // Validate custom filament presets if set
+    if (has_custom_filament_presets()) {
+        std::vector<std::string> filament_names = get_filament_preset_names();
+
+        // Get printer extruder count (from custom printer or global)
+        int expected_extruder_count = 1;
+        if (has_custom_printer_preset()) {
+            std::string printer_name = get_printer_preset_name();
+            Preset* printer_preset = preset_bundle->printers.find_preset(printer_name, false);
+            if (printer_preset) {
+                expected_extruder_count = printer_preset->config.option<ConfigOptionInt>("extruder_count")->value;
+            }
+        } else {
+            expected_extruder_count = preset_bundle->get_printer_extruder_count();
+        }
+
+        // Check if filament count matches extruder count
+        if ((int)filament_names.size() != expected_extruder_count) {
+            warnings += "Number of filament presets (" + std::to_string(filament_names.size()) +
+                       ") doesn't match printer extruder count (" +
+                       std::to_string(expected_extruder_count) + "). ";
+            has_warnings = true;
+        }
+
+        // Check if filament presets exist
+        for (const std::string& filament_name : filament_names) {
+            if (!filament_name.empty()) {
+                Preset* filament_preset = preset_bundle->filaments.find_preset(filament_name, false);
+                if (!filament_preset) {
+                    warnings += "Filament preset '" + filament_name + "' not found. ";
+                    has_warnings = true;
+                }
+            }
+        }
+    }
+
+    if (warning_msg) {
+        *warning_msg = warnings;
+    }
+
+    return !has_warnings;
+}
+
 //get the print's object, result and index
 void PartPlate::get_print(PrintBase** print, GCodeResult** result, int* index)
 {
