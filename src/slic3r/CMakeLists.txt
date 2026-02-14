@@ -100,8 +100,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/DeviceManager.cpp
     GUI/DeviceManager.hpp
     GUI/Downloader.cpp
-    GUI/DownloaderFileGet.cpp
-    GUI/DownloaderFileGet.hpp
+    # GUI/DownloaderFileGet.cpp  # DISABLED: Requires CURL
+    # GUI/DownloaderFileGet.hpp  # DISABLED: Requires CURL
     GUI/Downloader.hpp
     GUI/DownloadProgressDialog.cpp
     GUI/DownloadProgressDialog.hpp
@@ -438,8 +438,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/SlicingProgressNotification.hpp
     GUI/StatusPanel.cpp
     GUI/StatusPanel.hpp
-    GUI/StepMeshDialog.cpp
-    GUI/StepMeshDialog.hpp
+    # GUI/StepMeshDialog.cpp  # DISABLED: STEP support disabled due to OCCT/CGAL issues
+    # GUI/StepMeshDialog.hpp  # DISABLED: STEP support disabled due to OCCT/CGAL issues
     GUI/SurfaceDrag.cpp
     GUI/SurfaceDrag.hpp
     GUI/Tabbook.cpp
@@ -736,7 +736,8 @@ else()
     set(_opengl_link_lib OpenGL::GL)
 endif()
 
-target_link_libraries(libslic3r_gui libslic3r cereal::cereal imgui imguizmo minilzo libvgcode md4c-html GLEW::GLEW OpenGL::GL hidapi ${wxWidgets_LIBRARIES} glfw libcurl OpenSSL::SSL OpenSSL::Crypto noise::noise)
+target_link_libraries(libslic3r_gui libslic3r cereal::cereal imgui imguizmo minilzo libvgcode md4c-html GLEW::GLEW OpenGL::GL hidapi ${wxWidgets_LIBRARIES} glfw noise::noise)
+# Removed: libcurl OpenSSL::SSL OpenSSL::Crypto
 
 
 if (MSVC)
@@ -808,3 +809,5 @@ endif ()
 
 # Add a definition so that we can tell we are compiling slic3r.
 target_compile_definitions(libslic3r_gui PRIVATE SLIC3R_CURRENTLY_COMPILING_GUI_MODULE)
+# Disable CGAL-dependent features due to CGAL/Boost/MSVC template compatibility issues
+target_compile_definitions(libslic3r_gui PUBLIC DISABLE_CGAL_FEATURES=1)

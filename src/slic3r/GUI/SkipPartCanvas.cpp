@@ -1,9 +1,10 @@
 #include <GL/glew.h>
 #include "SkipPartCanvas.hpp"
 
-#include <opencv2/opencv.hpp>
-#include <opencv2/core.hpp>
-#include <opencv2/imgproc.hpp>
+// OpenCV disabled in this build
+// #include <opencv2/opencv.hpp>
+// #include <opencv2/core.hpp>
+// #include <opencv2/imgproc.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/thread/mutex.hpp>
 #include <boost/nowide/fstream.hpp>
@@ -35,6 +36,7 @@ SkipPartCanvas::SkipPartCanvas(wxWindow *parent, const wxGLAttributes& dispAttrs
 
 void SkipPartCanvas::LoadPickImage(const std::string & path)
 {
+#ifndef DISABLE_OPENCV_FEATURES
     if(!std::filesystem::exists(path)) return;
 
     auto ParseShapeId = [](cv::Mat image, const std::vector<std::vector<cv::Point>> &contours, const std::vector<cv::Vec4i> &hierarchy, int root_idx) -> uint32_t {
@@ -156,6 +158,10 @@ void SkipPartCanvas::LoadPickImage(const std::string & path)
             if (parts_state_.find(id) == parts_state_.end()) parts_state_.emplace(id, psUnCheck);
         }
     }
+#else
+    // OpenCV disabled - LoadPickImage feature unavailable
+    BOOST_LOG_TRIVIAL(warning) << "LoadPickImage called but OpenCV is disabled in this build";
+#endif
 }
 
 void SkipPartCanvas::ZoomIn(const int zoom_percent)
@@ -407,6 +413,7 @@ inline wxPoint SkipPartCanvas::ViewPtToImagePt(const wxPoint& view_pt) const
 
 uint32_t SkipPartCanvas::GetIdAtImagePt(const wxPoint& image_pt) const
 {
+#ifndef DISABLE_OPENCV_FEATURES
     if (image_pt.x >= 0 && image_pt.x < pick_image_.cols
         && image_pt.y >= 0 && image_pt.y < pick_image_.rows) {
         // at(row, col)=>at(y, x)
@@ -417,6 +424,10 @@ uint32_t SkipPartCanvas::GetIdAtImagePt(const wxPoint& image_pt) const
     } else {
         return 0;
     }
+#else
+    // OpenCV disabled
+    return 0;
+#endif
 }
 
 inline uint32_t SkipPartCanvas::GetIdAtViewPt(const wxPoint& view_pt) const

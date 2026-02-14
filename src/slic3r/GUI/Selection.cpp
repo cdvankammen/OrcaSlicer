@@ -23,9 +23,10 @@
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/log/trivial.hpp>
 
-#include <CGAL/Simple_cartesian.h>
-#include <CGAL/Min_sphere_of_spheres_d.h>
-#include <CGAL/Min_sphere_of_points_d_traits_3.h>
+// CGAL disabled in this build
+// #include <CGAL/Simple_cartesian.h>
+// #include <CGAL/Min_sphere_of_spheres_d.h>
+// #include <CGAL/Min_sphere_of_points_d_traits_3.h>
 
 static const Slic3r::ColorRGBA UNIFORM_SCALE_COLOR     = Slic3r::ColorRGBA::ORANGE();
 static const Slic3r::ColorRGBA SOLID_PLANE_COLOR       = {0.0f, 174.0f / 255.0f, 66.0f / 255.0f, 1.0f};
@@ -1210,6 +1211,7 @@ const std::pair<Vec3d, double> Selection::get_bounding_sphere() const
         std::optional<std::pair<Vec3d, double>>* sphere = const_cast<std::optional<std::pair<Vec3d, double>>*>(&m_bounding_sphere);
         *sphere = { Vec3d::Zero(), 0.0 };
 
+#ifndef DISABLE_CGAL_FEATURES
         using K = CGAL::Simple_cartesian<float>;
         using Traits = CGAL::Min_sphere_of_points_d_traits_3<K, float>;
         using Min_sphere = CGAL::Min_sphere_of_spheres_d<Traits>;
@@ -1234,6 +1236,24 @@ const std::pair<Vec3d, double> Selection::get_bounding_sphere() const
             (*sphere)->first = { *center_x, *(center_x + 1), *(center_x + 2) };
             (*sphere)->second = ms.radius();
         }
+#else
+        // CGAL disabled - using simple bounding box approximation
+        if (m_valid && !m_list.empty()) {
+            BoundingBoxf3 bbox;
+            for (unsigned int i : m_list) {
+                const GLVolume& volume = *(*m_volumes)[i];
+                const TriangleMesh* hull = volume.convex_hull();
+                const indexed_triangle_set& its = (hull != nullptr) ?
+                    hull->its : m_model->objects[volume.object_idx()]->volumes[volume.volume_idx()]->mesh().its;
+                const Transform3d& matrix = volume.world_matrix();
+                for (const Vec3f& v : its.vertices) {
+                    bbox.merge(matrix * v.cast<double>());
+                }
+            }
+            (*sphere)->first = bbox.center();
+            (*sphere)->second = bbox.radius();
+        }
+#endif
     }
 
     return *m_bounding_sphere;
@@ -2041,7 +2061,7 @@ void Selection::render(float scale_factor)
     // Orca: Render group bounding box if a group is selected
     if (has_selected_group()) {
         BoundingBoxf3 group_box = get_group_bounding_box(m_selected_group);
-        if (!group_box.empty()) {
+        if (!empty(group_box)) {
             // Render with dashed lines and a distinct color (e.g., cyan)
             render_bounding_box(group_box, Transform3d::Identity(), ColorRGB::CYAN());
         }

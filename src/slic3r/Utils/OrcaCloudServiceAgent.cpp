@@ -15,10 +15,11 @@
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
 
-#include <openssl/evp.h>
-#include <openssl/hmac.h>
-#include <openssl/rand.h>
-#include <openssl/sha.h>
+// OpenSSL disabled in this build
+// #include <openssl/evp.h>
+// #include <openssl/hmac.h>
+// #include <openssl/rand.h>
+// #include <openssl/sha.h>
 
 #include <algorithm>
 #include <cctype>

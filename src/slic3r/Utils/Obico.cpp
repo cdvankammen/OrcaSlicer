@@ -13,7 +13,8 @@
 #include <boost/algorithm/string/split.hpp>
 #include <boost/nowide/convert.hpp>
 
-#include <curl/curl.h>
+// CURL disabled in this build
+// #include <curl/curl.h>
 #include <wx/progdlg.h>
 
 #include "slic3r/GUI/GUI.hpp"

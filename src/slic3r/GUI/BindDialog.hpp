@@ -15,7 +15,8 @@
 #include <wx/image.h>
 #include <wx/icon.h>
 #include <wx/dialog.h>
-#include <curl/curl.h>
+// CURL disabled in this build
+// #include <curl/curl.h>
 #include <wx/webrequest.h>
 #include "wxExtensions.hpp"
 #include "Widgets/StepCtrl.hpp"

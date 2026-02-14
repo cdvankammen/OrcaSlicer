@@ -22,7 +22,7 @@
 #include "MsgDialog.hpp"
 #include "Widgets/ProgressDialog.hpp"
 #include "SingleChoiceDialog.hpp"
-#include "StepMeshDialog.hpp"
+// #include "StepMeshDialog.hpp"  // DISABLED: STEP support disabled due to OCCT/CGAL template issues with MSVC
 
 
 #include <vector>
@@ -2300,8 +2300,10 @@ void ObjectList::load_modifier(const wxArrayString& input_files, ModelObject& mo
         bool is_user_cancel = false;
         Model model;
         try {
-            if (boost::iends_with(input_file, ".stp") ||
-                boost::iends_with(input_file, ".step")) {
+            // DISABLED: STEP support disabled due to OCCT/CGAL template issues with MSVC
+            /*
+            if (false && (boost::iends_with(input_file, ".stp") ||
+                boost::iends_with(input_file, ".step"))) {
                 double linear  = string_to_double_decimal_point(wxGetApp().app_config->get("linear_defletion"));
                 if (linear <= 0) linear = 0.003;
                 double angle = string_to_double_decimal_point(wxGetApp().app_config->get("angle_defletion"));
@@ -2329,7 +2331,9 @@ void ObjectList::load_modifier(const wxArrayString& input_files, ModelObject& mo
                         return -1;
                     },
                     linear, angle, split_compound);
-            } else {
+            } else
+            */
+            {
                 model = Model::read_from_file(input_file, nullptr, nullptr, LoadStrategy::LoadModel);
             }
         }
@@ -4110,6 +4114,8 @@ wxDataViewItemArray ObjectList::add_volumes_to_object_in_list(size_t obj_idx, st
         }
         int ui_volume_idx = 0;
 
+        // DISABLED: Volume groups feature incomplete - AddChild method not implemented in ObjectDataViewModel
+        /*
         // Orca: Add groups first
         for (const auto& group : object->volume_groups) {
             // Create group node
@@ -4155,6 +4161,7 @@ wxDataViewItemArray ObjectList::add_volumes_to_object_in_list(size_t obj_idx, st
                 Expand(new_group_item);
             }
         }
+        */
 
         // Add ungrouped volumes directly to object
         for (const ModelVolume *volume : object->volumes) {

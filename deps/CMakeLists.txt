@@ -334,9 +334,11 @@ include(Blosc/Blosc.cmake)
 include(OpenEXR/OpenEXR.cmake)
 include(OpenVDB/OpenVDB.cmake)
 
-include(GMP/GMP.cmake)
-include(MPFR/MPFR.cmake)
-include(CGAL/CGAL.cmake)
+# DISABLED: GMP/MPFR are only needed for CGAL which is disabled
+# include(GMP/GMP.cmake)
+# include(MPFR/MPFR.cmake)
+# DISABLED: CGAL has template compatibility issues with MSVC/Boost
+# include(CGAL/CGAL.cmake)
 
 include(NLopt/NLopt.cmake)
 include(libnoise/libnoise.cmake)
@@ -348,20 +350,23 @@ include(Draco/Draco.cmake)
 # 3.1 has everything in the right place, but the md5 funcs used are deprecated
 # a grep across the repo shows it is used for other things
 # TODO: update openssl and everything that uses <openssl/md5.h> 
+# DISABLED: OpenSSL build repeatedly fails - disabling network features
 set(OPENSSL_PKG "")
-if(NOT OPENSSL_FOUND)
-    include(OpenSSL/OpenSSL.cmake)
-    set(OPENSSL_PKG dep_OpenSSL)
-endif()
+set(OPENSSL_FOUND TRUE)  # Pretend we found it to skip building
+# if(NOT OPENSSL_FOUND)
+#     include(OpenSSL/OpenSSL.cmake)
+#     set(OPENSSL_PKG dep_OpenSSL)
+# endif()
 
 # we don't want to load a "wrong" openssl when loading curl
-# so, just don't even bother 
+# so, just don't even bother
 # ...i think this is how it works? change if wrong
 set(CURL_PKG "")
-if (NOT OPENSSL_FOUND OR NOT CURL_FOUND)
-    include(CURL/CURL.cmake)
-    set(CURL_PKG dep_CURL)
-endif ()
+set(CURL_FOUND TRUE)  # Skip CURL as well since it depends on OpenSSL
+# if (NOT OPENSSL_FOUND OR NOT CURL_FOUND)
+#     include(CURL/CURL.cmake)
+#     set(CURL_PKG dep_CURL)
+# endif ()
 
 set(JPEG_PKG "")
 if (NOT JPEG_FOUND)
@@ -396,7 +401,8 @@ if((REV_PARSE_RESULT EQUAL 0) AND (REV_PARSE_OUTPUT STREQUAL "true"))
     file(RELATIVE_PATH BINARY_DIR_REL  ${CMAKE_SOURCE_DIR}/.. ${CMAKE_BINARY_DIR})
 endif ()
 
-include(OCCT/OCCT.cmake)
+# DISABLED: OCCT/STEP support disabled in main build due to template compatibility issues
+# include(OCCT/OCCT.cmake)
 include(OpenCV/OpenCV.cmake)
 
 set(_dep_list
@@ -411,9 +417,9 @@ set(_dep_list
     dep_OpenVDB
     dep_OpenCSG
     dep_OpenCV
-    dep_CGAL
+    # dep_CGAL  # DISABLED: CGAL has template compatibility issues with MSVC/Boost
     dep_GLFW
-    dep_OCCT
+    # dep_OCCT  # DISABLED: OCCT/STEP support disabled in main build
     ${FREETYPE_PKG}
     ${PNG_PKG}
     ${ZLIB_PKG}

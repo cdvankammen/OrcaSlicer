@@ -10,6 +10,7 @@
 
 #include <boost/log/trivial.hpp>
 
+#ifndef DISABLE_CGAL_FEATURES
 #include "BRepBuilderAPI_MakeWire.hxx"
 #include "BRepBuilderAPI_MakeEdge.hxx"
 #include "BRepBuilderAPI_MakeFace.hxx"
@@ -20,9 +21,12 @@
 #include "TopExp_Explorer.hxx"
 #include "TopoDS.hxx"
 #include "BRepExtrema_SelfIntersection.hxx"
+#endif // DISABLE_CGAL_FEATURES
 #include "libslic3r/clipper.hpp"
 #include "libslic3r/Polygon.hpp"
 
+#ifndef DISABLE_CGAL_FEATURES
+// SVG import requires OCCT which is disabled in this build
 namespace Slic3r {
 const double STEP_TRANS_CHORD_ERROR = 0.005;
 const double STEP_TRANS_ANGLE_RES   = 1;
@@ -399,4 +403,27 @@ bool load_svg(const char *path, Model *model, std::string &message)
     }
     return true;
 }
+#else  // DISABLE_CGAL_FEATURES defined
+// SVG import stubs when OCCT is disabled
+namespace Slic3r {
+struct Element_Info  // Stub definition when OCCT disabled
+{
+    std::string name;
+    unsigned int color;
+};
+
+bool get_svg_profile(const char *path, std::vector<Element_Info> &element_infos, std::string& message)
+{
+    message = "SVG import is not available in this build (OCCT/CGAL disabled)";
+    BOOST_LOG_TRIVIAL(error) << message;
+    return false;
+}
+
+bool load_svg(const char *path, Model *model, std::string &message)
+{
+    message = "SVG import is not available in this build (OCCT/CGAL disabled)";
+    BOOST_LOG_TRIVIAL(error) << message;
+    return false;
+}
+#endif // DISABLE_CGAL_FEATURES
 } // namespace Slic3r

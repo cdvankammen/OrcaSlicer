@@ -436,7 +436,7 @@ public:
     void set_selected();
     void set_unselected();
     void set_hover_id(int id) { m_hover_id = id; }
-    const BoundingBoxf3& get_bounding_box(bool extended = false) { return extended ? m_extended_bounding_box : m_bounding_box; }
+    const BoundingBoxf3& get_bounding_box(bool extended = false) const { return extended ? m_extended_bounding_box : m_bounding_box; }
     const BoundingBox get_bounding_box_crd();
     BoundingBoxf3 get_plate_box() {return get_build_volume();}
     BoundingBoxf3 get_build_volume(bool use_share = false);

@@ -2,7 +2,8 @@
 #define SKIPPARTCANVAS_H
 #include <wx/wx.h>
 #include <wx/glcanvas.h>
-#include <opencv2/opencv.hpp>
+// OpenCV disabled in this build
+// #include <opencv2/opencv.hpp>
 #include <wx/textctrl.h>
 #include <vector>
 #include <expat.h>
@@ -83,9 +84,18 @@ protected:
     void OnMouseWheel(wxMouseEvent& event);
 private:
     wxGLContext* context_;
+#ifndef DISABLE_OPENCV_FEATURES
     cv::Mat pick_image_;
+#else
+    struct StubMat { int cols{0}; int rows{0}; } pick_image_;
+#endif
     std::unordered_map < uint32_t, std::vector<std::vector<FloatPoint>>> parts_triangles_;
+#ifndef DISABLE_OPENCV_FEATURES
     std::unordered_map < uint32_t, std::vector<std::vector<cv::Point>>> pick_parts_;
+#else
+    struct StubPoint { float x{0}, y{0}; };
+    std::unordered_map < uint32_t, std::vector<std::vector<StubPoint>>> pick_parts_;
+#endif
     std::unordered_map<uint32_t, PartState> parts_state_;
     bool gl_inited_{false};
     int zoom_percent_{100};

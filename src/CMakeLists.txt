@@ -98,7 +98,8 @@ if(ORCA_TOOLS)
     else()
         add_executable(OrcaSlicer_profile_validator dev-utils/OrcaSlicer_profile_validator.cpp)
     endif()
-    target_link_libraries(OrcaSlicer_profile_validator libslic3r boost_headeronly libcurl OpenSSL::SSL OpenSSL::Crypto)
+    target_link_libraries(OrcaSlicer_profile_validator libslic3r boost_headeronly)
+    # Removed: libcurl OpenSSL::SSL OpenSSL::Crypto
     target_compile_definitions(OrcaSlicer_profile_validator PRIVATE -DBOOST_ALL_NO_LIB -DBOOST_USE_WINAPI_VERSION=0x602 -DBOOST_SYSTEM_USE_UTF8)
 endif()
 

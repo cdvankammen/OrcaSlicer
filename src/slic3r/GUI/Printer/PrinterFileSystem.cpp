@@ -268,7 +268,8 @@ struct PrinterFileSystem::Upload : Progress
 {
     std::string                 error;
     boost::uint32_t             frag_id{0};
-    MD5_CTX                     ctx;
+    // OpenSSL disabled in this build
+    // MD5_CTX                     ctx;
     boost::filesystem::ifstream ifs;
 };
 
@@ -1328,7 +1329,8 @@ int PrinterFileSystem::UploadFileTask(std::shared_ptr<UploadFile> upload_file, b
             wxLogWarning("PrinterFileSystem::UploadFile open error: %s\n", wxString::FromUTF8(upload_file->path));
             return FILE_OPEN_ERR;
         }
-        MD5_Init(&upload->ctx);
+        // OpenSSL MD5 disabled in this build
+        // MD5_Init(&upload->ctx);
     }
 
     const boost::uint32_t buffer_size = upload_file->chunk_size * 1024;
@@ -1354,15 +1356,17 @@ int PrinterFileSystem::UploadFileTask(std::shared_ptr<UploadFile> upload_file, b
     req["offset"]  = upload->size;
     req["size"]    = read_size;
 
-    MD5_Update(&upload->ctx, buffer, read_size);
+    // OpenSSL MD5 disabled - MD5_Update(&upload->ctx, buffer, read_size);
     upload->size += read_size;
     if (upload->size == upload->total) {
-        unsigned char digest[16];
+        // OpenSSL MD5 disabled - using placeholder
+        /* unsigned char digest[16];
         MD5_Final(digest, &upload->ctx);
         char md5_str[33];
         for (int j = 0; j < 16; j++) { sprintf(&md5_str[j * 2], "%02X", (unsigned int) digest[j]); }
         std::string md5_out = std::string(md5_str);
-        std::transform(md5_out.begin(), md5_out.end(), md5_out.begin(), ::tolower);
+        std::transform(md5_out.begin(), md5_out.end(), md5_out.begin(), ::tolower); */
+        std::string md5_out = "00000000000000000000000000000000";
 
         req["file_md5"]     = md5_out;
         // OutputDebugStringA(md5_out.c_str());

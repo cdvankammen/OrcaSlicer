@@ -4,7 +4,7 @@
 #include <thread>
 #include "GUI_App.hpp"
 #include "GUI_Utils.hpp"
-#include "libslic3r/Format/STEP.hpp"
+// #include "libslic3r/Format/STEP.hpp"  // DISABLED: OCCT/CGAL template issues with MSVC
 #include "Widgets/Button.hpp"
 class Button;
 

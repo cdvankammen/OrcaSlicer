@@ -34,7 +34,9 @@
 #include "GCodeWriter.hpp"
 
 // BBS: for segment
+#ifndef DISABLE_CGAL_FEATURES
 #include "MeshBoolean.hpp"
+#endif
 #include "Format/3mf.hpp"
 
 // Transtltion
@@ -181,6 +183,8 @@ Model::~Model()
         Slic3r::remove_backup(*this, true);
 }
 
+// DISABLED: STEP support disabled due to OCCT/CGAL template issues with MSVC
+/*
 Model Model::read_from_step(const std::string&                                      input_file,
                             LoadStrategy                                            options,
                             ImportStepProgressFn                                    stepFn,
@@ -205,7 +209,7 @@ Model Model::read_from_step(const std::string&                                  
             goto _finished;
         }
     }
-    
+
     status = step_file.mesh(&model, is_cb_cancel, is_split_compound, linear_defletion, angle_defletion);
 
 _finished:
@@ -234,6 +238,7 @@ _finished:
 
     return model;
 }
+*/
 
 // BBS: add part plate related logic
 // BBS: backup & restore
@@ -1215,6 +1220,10 @@ int ModelObject::get_backup_id() const { return m_model ? get_model()->get_objec
 // BBS: Boolean Operations impl. - MusangKing
 bool ModelObject::make_boolean(ModelObject *cut_object, const std::string &boolean_opts)
 {
+#ifdef DISABLE_CGAL_FEATURES
+    BOOST_LOG_TRIVIAL(error) << "Mesh boolean operations are disabled in this build (CGAL not available)";
+    return false;
+#else
     // merge meshes into single volume instead of multi-parts object
     if (this->volumes.size() != 1) {
         // we can't merge meshes if there's not just one volume
@@ -1232,6 +1241,7 @@ bool ModelObject::make_boolean(ModelObject *cut_object, const std::string &boole
         vol->name        = this->name + "_" + std::to_string(i++);
     }
     return true;
+#endif
 }
 
 ModelVolume *ModelObject::add_volume(const TriangleMesh &mesh, bool modify_to_center_geometry)

@@ -27,7 +27,8 @@
 #include "wx/webviewarchivehandler.h"
 #include "wx/webviewfshandler.h"
 
-#include <curl/curl.h>
+// CURL disabled in this build
+// #include <curl/curl.h>
 #include <wx/webrequest.h>
 #include "wxExtensions.hpp"
 #include "Plater.hpp"

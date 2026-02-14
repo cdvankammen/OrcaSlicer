@@ -2349,8 +2349,9 @@ void PartPlate::set_printer_preset_name(const std::string& preset_name)
     m_printer_preset_name = preset_name;
 
     // Invalidate slice result when printer preset changes
+    // DISABLED: invalidate_all_steps() is protected - using set_gcode_file_invalidated() instead
     if (m_print)
-        m_print->invalidate_all_steps();
+        m_print->set_gcode_file_invalidated();
     m_ready_for_slice = false;
 }
 
@@ -2362,8 +2363,9 @@ void PartPlate::set_filament_preset_names(const std::vector<std::string>& preset
     m_filament_preset_names = preset_names;
 
     // Invalidate slice result when filament presets change
+    // DISABLED: invalidate_all_steps() is protected - using set_gcode_file_invalidated() instead
     if (m_print)
-        m_print->invalidate_all_steps();
+        m_print->set_gcode_file_invalidated();
     m_ready_for_slice = false;
 }
 
@@ -2484,7 +2486,8 @@ bool PartPlate::validate_custom_presets(PresetBundle* preset_bundle, std::string
 
             // Check extruder count
             int printer_extruder_count = printer_preset->config.option<ConfigOptionInt>("extruder_count")->value;
-            std::set<int> used_extruders = get_extruders(true);
+            std::vector<int> used_extruders_vec = get_extruders(true);
+            std::set<int> used_extruders(used_extruders_vec.begin(), used_extruders_vec.end());
             int max_used_extruder = used_extruders.empty() ? 1 : (*used_extruders.rbegin() + 1);
 
             if (max_used_extruder > printer_extruder_count) {

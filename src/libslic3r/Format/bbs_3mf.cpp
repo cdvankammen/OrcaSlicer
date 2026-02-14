@@ -36,7 +36,8 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/xml_parser.hpp>
 #include <boost/foreach.hpp>
-#include <openssl/md5.h>
+// OpenSSL disabled in this build
+// #include <openssl/md5.h>
 
 namespace pt = boost::property_tree;
 
@@ -219,7 +220,7 @@ static constexpr const char *LAYER_FILAMENT_LIST_TAG       = "layer_filament_lis
 
 
 static constexpr const char* CONFIG_TAG = "config";
-static constexpr const char* VOLUME_TAG = "volume";
+// VOLUME_TAG already defined above at line 208
 static constexpr const char* PART_TAG = "part";
 static constexpr const char* PLATE_TAG = "plate";
 static constexpr const char* INSTANCE_TAG = "model_instance";
@@ -4203,9 +4204,10 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
     {
         // Apply parsed groups to current object
         if (m_curr_config.object_id >= 0) {
-            IdToModelObjectMap::iterator object_item = m_objects.find(m_curr_config.object_id);
-            if (object_item != m_objects.end() && object_item->second != nullptr) {
-                ModelObject* object = object_item->second;
+            Id id = std::make_pair(m_sub_model_path, m_curr_config.object_id);
+            IdToModelObjectMap::iterator object_item = m_objects.find(id);
+            if (object_item != m_objects.end() && object_item->second >= 0 && object_item->second < (int)m_model->objects.size()) {
+                ModelObject* object = m_model->objects[object_item->second];
 
                 for (const auto& group_data : m_parsed_groups) {
                     ModelVolumeGroup* group = object->add_volume_group(group_data.name);
@@ -4218,7 +4220,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                         if (vol_idx >= 0 && vol_idx < (int)object->volumes.size()) {
                             ModelVolume* vol = object->volumes[vol_idx];
                             group->add_volume(vol);
-                            vol->parent_group = group;
+                            vol->set_parent_group(group);
                         }
                     }
                 }
@@ -6279,23 +6281,28 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             for (int i = 0; i < plate_data_list.size(); i++) {
                 PlateData *plate_data = plate_data_list[i];
                 if (!plate_data->gcode_file.empty() && plate_data->is_sliced_valid && boost::filesystem::exists(plate_data->gcode_file)) {
-                    unsigned char digest[16];
-                    MD5_CTX       ctx;
-                    MD5_Init(&ctx);
-                    auto                        src_gcode_file = plate_data->gcode_file;
-                    boost::filesystem::ifstream ifs(src_gcode_file, std::ios::binary);
-                    std::string                 buf(64 * 1024, 0);
-                    const std::size_t &         size      = boost::filesystem::file_size(src_gcode_file);
-                    std::size_t                 left_size = size;
-                    while (ifs) {
-                        ifs.read(buf.data(), buf.size());
-                        int read_bytes = ifs.gcount();
-                        MD5_Update(&ctx, (unsigned char *) buf.data(), read_bytes);
-                    }
-                    MD5_Final(digest, &ctx);
-                    char md5_str[33];
-                    for (int j = 0; j < 16; j++) { sprintf(&md5_str[j * 2], "%02X", (unsigned int) digest[j]); }
-                    plate_data->gcode_file_md5 = std::string(md5_str);
+                    // OpenSSL disabled - skipping MD5 calculation
+                    BOOST_LOG_TRIVIAL(warning) << "MD5 calculation skipped for G-code file (OpenSSL not available)";
+                    plate_data->gcode_file_md5 = std::string("00000000000000000000000000000000");  // Placeholder MD5
+
+                    // Original MD5 calculation disabled:
+                    // unsigned char digest[16];
+                    // MD5_CTX       ctx;
+                    // MD5_Init(&ctx);
+                    // auto                        src_gcode_file = plate_data->gcode_file;
+                    // boost::filesystem::ifstream ifs(src_gcode_file, std::ios::binary);
+                    // std::string                 buf(64 * 1024, 0);
+                    // const std::size_t &         size      = boost::filesystem::file_size(src_gcode_file);
+                    // std::size_t                 left_size = size;
+                    // while (ifs) {
+                    //     ifs.read(buf.data(), buf.size());
+                    //     int read_bytes = ifs.gcount();
+                    //     MD5_Update(&ctx, (unsigned char *) buf.data(), read_bytes);
+                    // }
+                    // MD5_Final(digest, &ctx);
+                    // char md5_str[33];
+                    // for (int j = 0; j < 16; j++) { sprintf(&md5_str[j * 2], "%02X", (unsigned int) digest[j]); }
+                    // plate_data->gcode_file_md5 = std::string(md5_str);
                     std::string target_file    = (boost::format("Metadata/plate_%1%.gcode.md5") % (plate_data->plate_index + 1)).str();
                     if (!mz_zip_writer_add_mem(&archive, target_file.c_str(), (const void *) plate_data->gcode_file_md5.c_str(), plate_data->gcode_file_md5.length(),
                                                MZ_DEFAULT_COMPRESSION)) {

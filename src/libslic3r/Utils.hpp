@@ -15,7 +15,8 @@
 #include <boost/date_time.hpp>
 #include "boost/date_time/posix_time/ptime.hpp"
 
-#include <openssl/md5.h>
+// OpenSSL disabled in this build
+// #include <openssl/md5.h>
 
 #include "libslic3r.h"
 

@@ -57,8 +57,9 @@
 #include <wx/fontutil.h>
 #include <wx/glcanvas.h>
 #include <wx/utils.h>
-#include <openssl/hmac.h>
-#include <openssl/evp.h>
+// OpenSSL disabled in this build
+// #include <openssl/hmac.h>
+// #include <openssl/evp.h>
 
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/Model.hpp"
@@ -5259,6 +5260,12 @@ std::string extract_path_from_url(const std::string& url)
 
 void maybe_attach_updater_signature(Http& http, const std::string& canonical_query, const std::string& request_url)
 {
+    // OpenSSL HMAC signing disabled in this build - requests will be unsigned
+    BOOST_LOG_TRIVIAL(warning) << "Update request signature skipped (OpenSSL not available)";
+    return;
+
+    // Original HMAC implementation disabled
+    /*
     if (canonical_query.empty())
         return;
 
@@ -5287,6 +5294,7 @@ void maybe_attach_updater_signature(Http& http, const std::string& canonical_que
     const std::string signature = base64url_encode(digest, digest_length);
     http.header("X-Orca-Ts", timestamp);
     http.header("X-Orca-Sig", "v1:" + signature);
+    */
 }
 
 } // namespace

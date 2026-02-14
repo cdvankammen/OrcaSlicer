@@ -16,7 +16,8 @@ if(WIN32)
     set(_conf_cmd "C:/Strawberry/perl/bin/perl.exe" Configure )
     set(_cross_comp_prefix_line "")
     # Use wrapper script to avoid Git/MSYS link.exe conflict
-    set(_make_cmd "${CMAKE_SOURCE_DIR}/build_openssl.bat")
+    # Build only libraries, not tests (build_libs target)
+    set(_make_cmd "${CMAKE_SOURCE_DIR}/build_openssl.bat" build_libs)
     set(_install_cmd "${CMAKE_SOURCE_DIR}/build_openssl.bat" install_sw)
 else()
     if(APPLE)
@@ -54,6 +55,7 @@ ExternalProject_Add(dep_OpenSSL
         no-asm
         no-ssl3-method
         no-dynamic-engine
+        no-tests
     BUILD_IN_SOURCE ON
     BUILD_COMMAND ${_make_cmd}
     INSTALL_COMMAND ${_install_cmd}

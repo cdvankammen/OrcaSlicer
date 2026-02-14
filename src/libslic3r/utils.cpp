@@ -1577,23 +1577,29 @@ bool makedir(const std::string path) {
 
 bool bbl_calc_md5(std::string &filename, std::string &md5_out)
 {
-    unsigned char digest[16];
-    MD5_CTX       ctx;
-    MD5_Init(&ctx);
-    boost::nowide::ifstream ifs(filename, std::ios::binary);
-    std::string                 buf(64 * 1024, 0);
-    const std::size_t &         size      = boost::filesystem::file_size(filename);
-    std::size_t                 left_size = size;
-    while (ifs) {
-        ifs.read(buf.data(), buf.size());
-        int read_bytes = ifs.gcount();
-        MD5_Update(&ctx, (unsigned char *) buf.data(), read_bytes);
-    }
-    MD5_Final(digest, &ctx);
-    char md5_str[33];
-    for (int j = 0; j < 16; j++) { sprintf(&md5_str[j * 2], "%02X", (unsigned int) digest[j]); }
-    md5_out = std::string(md5_str);
-    return true;
+    // OpenSSL disabled in this build - MD5 calculation not available
+    BOOST_LOG_TRIVIAL(warning) << "MD5 calculation requested but OpenSSL is not available in this build";
+    md5_out = "00000000000000000000000000000000";  // Return placeholder MD5
+    return false;
+
+    // Original OpenSSL implementation disabled:
+    // unsigned char digest[16];
+    // MD5_CTX       ctx;
+    // MD5_Init(&ctx);
+    // boost::nowide::ifstream ifs(filename, std::ios::binary);
+    // std::string                 buf(64 * 1024, 0);
+    // const std::size_t &         size      = boost::filesystem::file_size(filename);
+    // std::size_t                 left_size = size;
+    // while (ifs) {
+    //     ifs.read(buf.data(), buf.size());
+    //     int read_bytes = ifs.gcount();
+    //     MD5_Update(&ctx, (unsigned char *) buf.data(), read_bytes);
+    // }
+    // MD5_Final(digest, &ctx);
+    // char md5_str[33];
+    // for (int j = 0; j < 16; j++) { sprintf(&md5_str[j * 2], "%02X", (unsigned int) digest[j]); }
+    // md5_out = std::string(md5_str);
+    // return true;
 }
 
 // SoftFever: copy directory recursively

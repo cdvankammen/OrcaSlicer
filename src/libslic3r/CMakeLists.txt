@@ -13,10 +13,12 @@ if (MINGW)
     add_compile_options(-Wa,-mbig-obj)
 endif ()
 
+#set(OpenVDBUtils_SOURCES "")
+#if (TARGET OpenVDB::openvdb)
+#    set(OpenVDBUtils_SOURCES OpenVDBUtils.cpp OpenVDBUtils.hpp)
+#endif()
+# OpenVDB disabled - leave sources empty
 set(OpenVDBUtils_SOURCES "")
-if (TARGET OpenVDB::openvdb)
-    set(OpenVDBUtils_SOURCES OpenVDBUtils.cpp OpenVDBUtils.hpp)
-endif()
 
 option(BUILD_SHARED_LIBS "Build shared libs" OFF)
 
@@ -108,8 +110,8 @@ set(lisbslic3r_sources
     EdgeGrid.hpp
     ElephantFootCompensation.cpp
     ElephantFootCompensation.hpp
-    Emboss.cpp
-    Emboss.hpp
+    # Emboss.cpp  # DISABLED: Depends on Triangulation.hpp which requires CGAL
+    # Emboss.hpp  # DISABLED: Depends on Triangulation.hpp which requires CGAL
     EmbossShape.hpp
     enum_bitmask.hpp
     Execution/Execution.hpp
@@ -194,8 +196,8 @@ set(lisbslic3r_sources
     Format/objparser.hpp
     Format/SL1.cpp
     Format/SL1.hpp
-    Format/STEP.cpp
-    Format/STEP.hpp
+    # Format/STEP.cpp  # DISABLED: Requires OCCT which has CGAL template issues
+    # Format/STEP.hpp  # DISABLED: Requires OCCT which has CGAL template issues
     Format/STL.cpp
     Format/STL.hpp
     Format/svg.cpp
@@ -269,8 +271,8 @@ set(lisbslic3r_sources
     Geometry/Voronoi.hpp
     Geometry/VoronoiOffset.cpp
     Geometry/VoronoiOffset.hpp
-    Geometry/VoronoiUtilsCgal.cpp
-    Geometry/VoronoiUtilsCgal.hpp
+    # Geometry/VoronoiUtilsCgal.cpp  # DISABLED: CGAL template issues with MSVC
+    # Geometry/VoronoiUtilsCgal.hpp  # DISABLED: CGAL template issues with MSVC
     Geometry/VoronoiUtils.cpp
     Geometry/VoronoiUtils.hpp
     Geometry/VoronoiVisualUtils.hpp
@@ -312,8 +314,8 @@ set(lisbslic3r_sources
     NormalUtils.hpp
     NSVGUtils.cpp
     NSVGUtils.hpp
-    ObjColorUtils.cpp
-    ObjColorUtils.hpp
+    # ObjColorUtils.cpp  # DISABLED: Requires OpenCV
+    # ObjColorUtils.hpp  # DISABLED: Requires OpenCV
     ObjectID.cpp
     ObjectID.hpp
     Optimize/BruteforceOptimizer.hpp
@@ -364,8 +366,8 @@ set(lisbslic3r_sources
     QuadricEdgeCollapse.cpp
     QuadricEdgeCollapse.hpp
     Semver.cpp
-    Shape/TextShape.cpp
-    Shape/TextShape.hpp
+    # Shape/TextShape.cpp  # DISABLED: Requires OCCT
+    # Shape/TextShape.hpp  # DISABLED: Requires OCCT
     ShortEdgeCollapse.cpp
     ShortEdgeCollapse.hpp
     ShortestPath.cpp
@@ -377,8 +379,8 @@ set(lisbslic3r_sources
     SLA/ConcaveHull.cpp
     SLA/ConcaveHull.hpp
     SLA/Concurrency.hpp
-    SLA/Hollowing.cpp
-    SLA/Hollowing.hpp
+    # SLA/Hollowing.cpp  # DISABLED: Requires OpenVDB
+    # SLA/Hollowing.hpp  # DISABLED: Requires OpenVDB
     SLA/IndexedMesh.cpp
     SLA/IndexedMesh.hpp
     SLA/JobController.hpp
@@ -495,51 +497,57 @@ set(CGAL_DO_NOT_WARN_ABOUT_CMAKE_BUILD_TYPE ON CACHE BOOL "" FORCE)
 
 cmake_policy(PUSH)
 cmake_policy(SET CMP0011 NEW)
-find_package(CGAL REQUIRED)
-find_package(OpenCV REQUIRED core)
+# CGAL disabled due to template compatibility issues
+find_package(CGAL)  # Optional, not REQUIRED
+# OpenCV disabled - missing from dependencies
+find_package(OpenCV)  # Optional, not REQUIRED
 cmake_policy(POP)
 
-add_library(libslic3r_cgal STATIC 
-    CutSurface.hpp CutSurface.cpp
-    IntersectionPoints.hpp IntersectionPoints.cpp
-    MeshBoolean.hpp MeshBoolean.cpp
-    TryCatchSignal.hpp TryCatchSignal.cpp
-    Triangulation.hpp Triangulation.cpp
-)
-target_include_directories(libslic3r_cgal PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+# DISABLED: CGAL has template compatibility issues with MSVC
+# add_library(libslic3r_cgal STATIC
+#     CutSurface.hpp CutSurface.cpp
+#     IntersectionPoints.hpp IntersectionPoints.cpp
+#     MeshBoolean.hpp MeshBoolean.cpp
+#     TryCatchSignal.hpp TryCatchSignal.cpp
+#     Triangulation.hpp Triangulation.cpp
+# )
+# target_include_directories(libslic3r_cgal PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
+# DISABLED: CGAL has template compatibility issues with MSVC
 # Reset compile options of libslic3r_cgal. Despite it being linked privately, CGAL options
 # (-frounding-math) still propagate to dependent libs which is not desired.
-get_target_property(_cgal_tgt CGAL::CGAL ALIASED_TARGET)
-if (NOT TARGET ${_cgal_tgt})
-    set (_cgal_tgt CGAL::CGAL)
-endif ()
-get_target_property(_opts ${_cgal_tgt} INTERFACE_COMPILE_OPTIONS)
-if (_opts)
-    set(_opts_bad "${_opts}")
-    set(_opts_good "${_opts}")
-    list(FILTER _opts_bad INCLUDE REGEX frounding-math)
-    list(FILTER _opts_good EXCLUDE REGEX frounding-math)
-    set_target_properties(${_cgal_tgt} PROPERTIES INTERFACE_COMPILE_OPTIONS "${_opts_good}")
-    target_compile_options(libslic3r_cgal PRIVATE "${_opts_bad}")
-endif()
-
-target_link_libraries(libslic3r_cgal PRIVATE ${_cgal_tgt} eigen admesh libigl mcut boost_libs)
-
-if (MSVC AND "${CMAKE_SIZEOF_VOID_P}" STREQUAL "4") # 32 bit MSVC workaround
-    target_compile_definitions(libslic3r_cgal PRIVATE CGAL_DO_NOT_USE_MPZF)
-endif ()
+# get_target_property(_cgal_tgt CGAL::CGAL ALIASED_TARGET)
+# if (NOT TARGET ${_cgal_tgt})
+#     set (_cgal_tgt CGAL::CGAL)
+# endif ()
+# get_target_property(_opts ${_cgal_tgt} INTERFACE_COMPILE_OPTIONS)
+# if (_opts)
+#     set(_opts_bad "${_opts}")
+#     set(_opts_good "${_opts}")
+#     list(FILTER _opts_bad INCLUDE REGEX frounding-math)
+#     list(FILTER _opts_good EXCLUDE REGEX frounding-math)
+#     set_target_properties(${_cgal_tgt} PROPERTIES INTERFACE_COMPILE_OPTIONS "${_opts_good}")
+#     target_compile_options(libslic3r_cgal PRIVATE "${_opts_bad}")
+# endif()
+#
+# target_link_libraries(libslic3r_cgal PRIVATE ${_cgal_tgt} eigen admesh libigl mcut boost_libs)
+#
+# if (MSVC AND "${CMAKE_SIZEOF_VOID_P}" STREQUAL "4") # 32 bit MSVC workaround
+#     target_compile_definitions(libslic3r_cgal PRIVATE CGAL_DO_NOT_USE_MPZF)
+# endif ()
 
 encoding_check(libslic3r)
 
-target_compile_definitions(libslic3r PUBLIC -DUSE_TBB -DTBB_USE_CAPTURED_EXCEPTION=0)
+# Disable CGAL-dependent features due to CGAL/Boost/MSVC template compatibility issues
+target_compile_definitions(libslic3r PUBLIC -DUSE_TBB -DTBB_USE_CAPTURED_EXCEPTION=0 -DDISABLE_CGAL_FEATURES=1 -DDISABLE_OPENCV_FEATURES=1)
 target_include_directories(libslic3r PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(libslic3r SYSTEM PUBLIC ${EXPAT_INCLUDE_DIRS})
 
 # Find the OCCT and related libraries
-set(OpenCASCADE_DIR "${CMAKE_PREFIX_PATH}/lib/cmake/occt")
-find_package(OpenCASCADE REQUIRED)
-target_include_directories(libslic3r SYSTEM PUBLIC ${OpenCASCADE_INCLUDE_DIR})
+# DISABLED: OCCT/CGAL has template compilation issues with MSVC
+# set(OpenCASCADE_DIR "${CMAKE_PREFIX_PATH}/lib/cmake/occt")
+# find_package(OpenCASCADE REQUIRED)
+# target_include_directories(libslic3r SYSTEM PUBLIC ${OpenCASCADE_INCLUDE_DIR})
 
 find_package(JPEG REQUIRED)
 find_package(draco REQUIRED)
@@ -579,11 +587,11 @@ target_link_libraries(libslic3r
         libigl
         libnest2d
         miniz
-        opencv_world
+        # opencv_world  # DISABLED: OpenCV not built
     PRIVATE
         ${CMAKE_DL_LIBS}
         ${EXPAT_LIBRARIES}
-        ${OCCT_LIBS}
+        # ${OCCT_LIBS}  # DISABLED: CGAL/OCCT template issues with MSVC
         boost_libs
         cereal::cereal
         clipper
@@ -592,7 +600,7 @@ target_link_libraries(libslic3r
         eigen
         glu-libtess
         JPEG::JPEG
-        libslic3r_cgal
+        # libslic3r_cgal  # DISABLED: CGAL template issues with MSVC
         mcut
         noise::noise
         PNG::PNG
@@ -602,7 +610,7 @@ target_link_libraries(libslic3r
         TBB::tbb
         TBB::tbbmalloc
         ZLIB::ZLIB
-        OpenSSL::Crypto
+        # OpenSSL::Crypto  # DISABLED: OpenSSL not built
     )
 
 if(NOT WIN32)
@@ -619,9 +627,10 @@ if (APPLE)
     target_link_libraries(libslic3r PRIVATE ${FOUNDATION} ${MODELIO})
 endif ()
 
-if (TARGET OpenVDB::openvdb)
-    target_link_libraries(libslic3r PRIVATE OpenVDB::openvdb)
-endif()
+# OpenVDB disabled - dependencies not fully built
+# if (TARGET OpenVDB::openvdb)
+#     target_link_libraries(libslic3r PRIVATE OpenVDB::openvdb)
+# endif()
 
 if(WIN32)
     target_link_libraries(libslic3r PRIVATE Psapi.lib bcrypt.lib)

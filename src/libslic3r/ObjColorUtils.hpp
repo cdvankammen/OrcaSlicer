@@ -2,8 +2,14 @@
 #include <iostream>
 #include <ctime>
 
+// ObjColorUtils requires OpenCV which is not available in this build
+#ifndef DISABLE_OPENCV_FEATURES
 #include "opencv2/opencv.hpp"
+#endif
+
 #include "libslic3r/Color.hpp"
+
+#ifndef DISABLE_OPENCV_FEATURES
 class QuantKMeans
 {
 public:
@@ -260,6 +266,14 @@ public:
         return image8UC3;
     }
 };
+
+#else // DISABLE_OPENCV_FEATURES
+// Stub when OpenCV is disabled
+class QuantKMeans {
+public:
+    QuantKMeans(int alpha_thres = 10) {}
+};
+#endif // DISABLE_OPENCV_FEATURES
 
 bool obj_color_deal_algo(std::vector<Slic3r::RGBA> &input_colors,
                          std::vector<Slic3r::RGBA>&   cluster_colors_from_algo,

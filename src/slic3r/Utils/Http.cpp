@@ -12,7 +12,8 @@
 #include <boost/format.hpp>
 #include <boost/log/trivial.hpp>
 
-#include <curl/curl.h>
+// CURL disabled in this build
+// #include <curl/curl.h>
 
 #ifdef OPENSSL_CERT_OVERRIDE
 #include <openssl/x509.h>

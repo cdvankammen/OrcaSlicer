@@ -50,7 +50,7 @@
 #include "libslic3r/libslic3r.h"
 #include "libslic3r/Format/STL.hpp"
 #include "libslic3r/Format/DRC.hpp"
-#include "libslic3r/Format/STEP.hpp"
+// #include "libslic3r/Format/STEP.hpp"  // DISABLED: OCCT/CGAL template issues with MSVC
 #include "libslic3r/Format/AMF.hpp"
 //#include "libslic3r/Format/3mf.hpp"
 #include "libslic3r/Format/bbs_3mf.hpp"
@@ -159,7 +159,7 @@
 #include "DailyTips.hpp"
 #include "CreatePresetsDialog.hpp"
 #include "FileArchiveDialog.hpp"
-#include "StepMeshDialog.hpp"
+// #include "StepMeshDialog.hpp"  // DISABLED: STEP support disabled due to OCCT/CGAL template issues with MSVC
 #include "FilamentMapDialog.hpp"
 #include "CloneDialog.hpp"
 
@@ -5779,6 +5779,8 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
             99,     // IMPORT_LOAD_MODEL_OBJECTS
             100
      };
+    // DISABLED: STEP support disabled due to OCCT/CGAL
+    #define LOAD_STEP_STAGE_NUM 3
     const int step_percent[LOAD_STEP_STAGE_NUM+1] = {
             5,     // LOAD_STEP_STAGE_READ_FILE
             30,     // LOAD_STEP_STAGE_GET_SOLID
@@ -6347,8 +6349,9 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                         in_out.filament_ids.clear();
                     }
                 };
-                if (boost::iends_with(path.string(), ".stp") ||
-                    boost::iends_with(path.string(), ".step")) {
+                // DISABLED: STEP support disabled due to OCCT/CGAL template issues with MSVC
+                /* if (false && (boost::iends_with(path.string(), ".stp") ||
+                    boost::iends_with(path.string(), ".step"))) {
                         double linear = string_to_double_decimal_point(wxGetApp().app_config->get("linear_defletion"));
                         if (linear <= 0) linear = 0.003;
                         double angle = string_to_double_decimal_point(wxGetApp().app_config->get("angle_defletion"));
@@ -6397,7 +6400,7 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                             is_user_cancel = true;
                             return -1;
                         }, linear, angle, split_compound);
-                }else {
+                } else */ {
                     model = Slic3r::Model:: read_from_file(
                     path.string(), nullptr, nullptr, strategy, &plate_data, &project_presets, &is_xxx, &file_version, nullptr,
                     [this, &dlg, real_filename, &progress_percent, &file_percent, INPUT_FILES_RATIO, total_files, i, &designer_model_id, &designer_country_code](int current, int total, bool &cancel, std::string &mode_id, std::string &code)
@@ -7657,7 +7660,7 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
         plate_config = cur_plate->build_plate_config(preset_bundle);
         if (plate_config) {
             BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": Using custom config for plate %1%: printer='%2%', %3% filament presets")
-                % cur_plate->get_plate_index()
+                % cur_plate->get_index()
                 % cur_plate->get_printer_preset_name()
                 % cur_plate->get_filament_preset_names().size();
         }
@@ -8042,8 +8045,10 @@ bool Plater::priv::replace_volume_with_stl(int object_idx, int volume_idx, const
 
     Model new_model;
     try {
-        const bool is_step = boost::algorithm::iends_with(path, ".stp") || boost::algorithm::iends_with(path, ".step");
-        if (is_step) {
+        // DISABLED: STEP support disabled due to OCCT/CGAL template issues with MSVC
+        const bool is_step = false; // boost::algorithm::iends_with(path, ".stp") || boost::algorithm::iends_with(path, ".step");
+        // DISABLED: STEP support disabled due to OCCT/CGAL
+        /* if (is_step) {
             auto config = wxGetApp().app_config;
             double linear = std::max(0.003, string_to_double_decimal_point(config->get("linear_defletion")));
             double angle = std::max(0.5, string_to_double_decimal_point(config->get("angle_defletion")));
@@ -8071,7 +8076,7 @@ bool Plater::priv::replace_volume_with_stl(int object_idx, int volume_idx, const
 
             new_model = Model::read_from_step(path, LoadStrategy::AddDefaultInstances | LoadStrategy::LoadModel, nullptr, nullptr, callback, linear, angle, split_compound);
             if (is_user_cancel) return false;
-        } else {
+        } else */ {
             new_model = Model::read_from_file(path, nullptr, nullptr, LoadStrategy::AddDefaultInstances | LoadStrategy::LoadModel);
         }
         for (ModelObject* model_object : new_model.objects) {
@@ -8526,13 +8531,18 @@ void Plater::priv::reload_from_disk()
             std::vector<Preset*> project_presets;
 
             // BBS: backup
-            if (boost::iends_with(path, ".stp") ||
-                boost::iends_with(path, ".step")) {
+            // DISABLED: STEP support disabled due to OCCT/CGAL template issues with MSVC
+            // Original STEP loading code commented out:
+            /*
+            if (false && (boost::iends_with(path, ".stp") ||
+                boost::iends_with(path, ".step"))) {
                 double linear = string_to_double_decimal_point(wxGetApp().app_config->get("linear_defletion"));
                 double angle = string_to_double_decimal_point(wxGetApp().app_config->get("angle_defletion"));
                 bool   is_split = wxGetApp().app_config->get_bool("is_split_compound");
                 new_model       = Model::read_from_step(path, LoadStrategy::AddDefaultInstances | LoadStrategy::LoadModel, nullptr, nullptr, nullptr, linear, angle, is_split);
-            }else {
+            } else
+            */
+            {
                 new_model = Model::read_from_file(path, nullptr, nullptr, LoadStrategy::AddDefaultInstances | LoadStrategy::LoadModel, &plate_data, &project_presets, nullptr, nullptr, nullptr, nullptr, nullptr, 0, obj_color_fun);
             }
 
