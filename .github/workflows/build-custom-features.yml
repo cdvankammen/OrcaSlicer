@@ -1,0 +1,344 @@
+name: Build OrcaSlicer with Custom Features
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type'
+        required: true
+        default: 'RelWithDebInfo'
+        type: choice
+        options:
+          - Release
+          - RelWithDebInfo
+          - Debug
+
+jobs:
+  build-windows:
+    name: Build Windows (Custom Features)
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v1.3
+
+      - name: Setup Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v4
+
+      - name: Configure Environment
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          echo "VS2022 environment configured"
+
+      - name: Build Dependencies
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          cd deps
+          mkdir build
+          cd build
+          cmake .. -G Ninja -DCMAKE_BUILD_TYPE=${{ inputs.build_type }}
+          ninja
+
+      - name: Build OrcaSlicer
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          mkdir build
+          cd build
+          cmake .. -G Ninja -DCMAKE_BUILD_TYPE=${{ inputs.build_type }} ^
+            -DSLIC3R_STATIC=ON ^
+            -DSLIC3R_GUI=ON ^
+            -DSLIC3R_PCH=OFF
+          ninja
+
+      - name: Package Build
+        shell: powershell
+        run: |
+          $VERSION = "custom-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+          $PACKAGE_NAME = "OrcaSlicer-CustomFeatures-$VERSION-Windows"
+
+          New-Item -ItemType Directory -Path "package\$PACKAGE_NAME" -Force
+
+          # Copy executable and required files
+          Copy-Item "build\src\OrcaSlicer.exe" "package\$PACKAGE_NAME\"
+          Copy-Item "build\src\OrcaSlicer_console.exe" "package\$PACKAGE_NAME\" -ErrorAction SilentlyContinue
+          Copy-Item -Recurse "resources" "package\$PACKAGE_NAME\"
+
+          # Copy feature documentation
+          New-Item -ItemType Directory -Path "package\$PACKAGE_NAME\.claude" -Force
+          Copy-Item ".claude\SENIOR-ARCHITECT-ASSESSMENT.md" "package\$PACKAGE_NAME\.claude\"
+          Copy-Item ".claude\GAP-ANALYSIS-COMPLETE.md" "package\$PACKAGE_NAME\.claude\"
+          Copy-Item ".claude\CREATIVE-SOLUTIONS.md" "package\$PACKAGE_NAME\.claude\"
+          Copy-Item ".claude\RECURSIVE-IMPROVEMENT-PLAN.md" "package\$PACKAGE_NAME\.claude\"
+
+          # Create feature list
+          @"
+# OrcaSlicer Custom Features Build
+
+**Build Date:** $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+**Branch:** $env:GITHUB_REF_NAME
+**Commit:** $env:GITHUB_SHA
+
+## Features Included
+
+1. **Per-Filament Retraction Override** (verified existing feature)
+2. **Per-Plate Printer/Filament Settings** (675 lines)
+   - Custom printer presets per plate
+   - Custom filament presets per plate
+   - 3MF serialization support
+
+3. **Prime Tower Material Selection** (32 lines)
+   - Choose which filaments participate in prime tower
+
+4. **Support & Infill Flush Selection** (32 lines)
+   - Choose which filaments receive purge material
+
+5. **Hierarchical Object Grouping** (919 lines)
+   - Organize model volumes into groups
+   - Bulk visibility and export control
+
+6. **Cutting Plane Size Adjustability** (37 lines)
+   - Manual width/height controls for cutting plane
+
+**Total:** 1,875 lines of custom code
+
+## Important Documentation
+
+Please read the included documentation in `.claude/` directory:
+- **SENIOR-ARCHITECT-ASSESSMENT.md** - Overview and recommendations
+- **GAP-ANALYSIS-COMPLETE.md** - Known issues (47 gaps identified)
+- **CREATIVE-SOLUTIONS.md** - Solutions for critical issues
+- **RECURSIVE-IMPROVEMENT-PLAN.md** - 48-hour improvement roadmap
+
+## Known Issues
+
+⚠️ **This is an ALPHA build with 8 critical issues that need fixes:**
+- Volume deletion can crash (use-after-free)
+- Undo/redo loses groups and plate presets
+- Flush settings can silently lose purge volume
+- See GAP-ANALYSIS-COMPLETE.md for full details
+
+## Testing
+
+Use CREATIVE-TESTING-PLAYBOOK.md for comprehensive test scenarios.
+
+## Support
+
+Report issues with [Custom Features] prefix in issue title.
+Include `.claude/` documentation references when relevant.
+"@ | Out-File -FilePath "package\$PACKAGE_NAME\CUSTOM_FEATURES.txt" -Encoding UTF8
+
+          # Create ZIP
+          Compress-Archive -Path "package\$PACKAGE_NAME" -DestinationPath "OrcaSlicer-CustomFeatures-Windows.zip"
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: OrcaSlicer-CustomFeatures-Windows-${{ inputs.build_type }}
+          path: OrcaSlicer-CustomFeatures-Windows.zip
+          retention-days: 30
+
+      - name: Build Summary
+        shell: powershell
+        run: |
+          @"
+# Build Complete ✅
+
+## Custom Features Build Summary
+
+**6 Custom Features Included:**
+1. ✅ Per-Filament Retraction Override
+2. ✅ Per-Plate Printer/Filament Settings (675 lines)
+3. ✅ Prime Tower Material Selection (32 lines)
+4. ✅ Support & Infill Flush Selection (32 lines)
+5. ✅ Hierarchical Object Grouping (919 lines)
+6. ✅ Cutting Plane Size Adjustability (37 lines)
+
+**Total Code:** 1,875 lines across 21 files
+
+**Documentation Included:**
+- Senior Architect Assessment
+- Gap Analysis (47 issues documented)
+- Creative Solutions
+- Recursive Improvement Plan (48-hour roadmap)
+
+**Download:** Check the Artifacts section above
+
+**Important:** This is an ALPHA build. Read CUSTOM_FEATURES.txt and
+.claude/GAP-ANALYSIS-COMPLETE.md before using in production.
+
+⚠️ **Known Critical Issues:** 8 (see documentation)
+📋 **Testing Guide:** CREATIVE-TESTING-PLAYBOOK.md
+🛠️ **Improvement Plan:** 48 hours (see RECURSIVE-IMPROVEMENT-PLAN.md)
+"@ >> $env:GITHUB_STEP_SUMMARY
+
+  build-linux:
+    name: Build Linux (Custom Features)
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            git \
+            gettext \
+            libgtk-3-dev \
+            libwxgtk3.0-gtk3-dev \
+            libssl-dev \
+            libcurl4-openssl-dev \
+            libglu1-mesa-dev \
+            libdbus-1-dev \
+            extra-cmake-modules \
+            pkgconf \
+            libudev-dev \
+            libglew-dev \
+            libhidapi-dev
+
+      - name: Build Dependencies
+        run: |
+          cd deps
+          mkdir -p build
+          cd build
+          cmake .. -G Ninja -DCMAKE_BUILD_TYPE=${{ inputs.build_type }}
+          ninja
+
+      - name: Build OrcaSlicer
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ inputs.build_type }} \
+            -DSLIC3R_STATIC=ON \
+            -DSLIC3R_GUI=ON \
+            -DSLIC3R_PCH=OFF
+          ninja
+
+      - name: Package Build
+        run: |
+          VERSION="custom-$(date +%Y%m%d-%H%M%S)"
+          PACKAGE_NAME="OrcaSlicer-CustomFeatures-$VERSION-Linux"
+
+          mkdir -p "package/$PACKAGE_NAME"
+
+          # Copy executable and resources
+          cp build/src/orcaslicer "package/$PACKAGE_NAME/"
+          cp -r resources "package/$PACKAGE_NAME/"
+
+          # Copy documentation
+          mkdir -p "package/$PACKAGE_NAME/.claude"
+          cp .claude/SENIOR-ARCHITECT-ASSESSMENT.md "package/$PACKAGE_NAME/.claude/"
+          cp .claude/GAP-ANALYSIS-COMPLETE.md "package/$PACKAGE_NAME/.claude/"
+          cp .claude/CREATIVE-SOLUTIONS.md "package/$PACKAGE_NAME/.claude/"
+          cp .claude/RECURSIVE-IMPROVEMENT-PLAN.md "package/$PACKAGE_NAME/.claude/"
+
+          # Create README
+          cat > "package/$PACKAGE_NAME/CUSTOM_FEATURES.txt" << 'EOF'
+# OrcaSlicer Custom Features Build (Linux)
+
+## Features Included
+1. Per-Filament Retraction Override
+2. Per-Plate Printer/Filament Settings (675 lines)
+3. Prime Tower Material Selection (32 lines)
+4. Support & Infill Flush Selection (32 lines)
+5. Hierarchical Object Grouping (919 lines)
+6. Cutting Plane Size Adjustability (37 lines)
+
+Total: 1,875 lines of custom code
+
+## Documentation
+See .claude/ directory for comprehensive analysis and improvement plans.
+
+## Known Issues
+⚠️ ALPHA build with 8 critical issues - read GAP-ANALYSIS-COMPLETE.md
+EOF
+
+          # Create tarball
+          cd package
+          tar -czf "../OrcaSlicer-CustomFeatures-Linux.tar.gz" "$PACKAGE_NAME"
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: OrcaSlicer-CustomFeatures-Linux-${{ inputs.build_type }}
+          path: OrcaSlicer-CustomFeatures-Linux.tar.gz
+          retention-days: 30
+
+  build-macos:
+    name: Build macOS (Custom Features)
+    runs-on: macos-12
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Dependencies
+        run: |
+          brew install \
+            cmake \
+            ninja \
+            gettext \
+            wxwidgets
+
+      - name: Build Dependencies
+        run: |
+          cd deps
+          mkdir -p build
+          cd build
+          cmake .. -G Ninja -DCMAKE_BUILD_TYPE=${{ inputs.build_type }}
+          ninja
+
+      - name: Build OrcaSlicer
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ inputs.build_type }} \
+            -DSLIC3R_STATIC=ON \
+            -DSLIC3R_GUI=ON \
+            -DSLIC3R_PCH=OFF
+          ninja
+
+      - name: Package Build
+        run: |
+          VERSION="custom-$(date +%Y%m%d-%H%M%S)"
+          PACKAGE_NAME="OrcaSlicer-CustomFeatures-$VERSION-macOS"
+
+          mkdir -p "package/$PACKAGE_NAME"
+
+          # Copy app bundle and resources
+          cp -r build/src/OrcaSlicer.app "package/$PACKAGE_NAME/" || \
+            cp build/src/orcaslicer "package/$PACKAGE_NAME/"
+          cp -r resources "package/$PACKAGE_NAME/"
+
+          # Copy documentation
+          mkdir -p "package/$PACKAGE_NAME/.claude"
+          cp .claude/*.md "package/$PACKAGE_NAME/.claude/" 2>/dev/null || true
+
+          # Create ZIP
+          cd package
+          zip -r "../OrcaSlicer-CustomFeatures-macOS.zip" "$PACKAGE_NAME"
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: OrcaSlicer-CustomFeatures-macOS-${{ inputs.build_type }}
+          path: OrcaSlicer-CustomFeatures-macOS.zip
+          retention-days: 30
