@@ -1,0 +1,13 @@
+# Copy and paste these commands into PowerShell (Run as Administrator)
+
+# Enable WSL
+dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
+
+# Enable Virtual Machine Platform  
+dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
+
+# Restart computer
+shutdown /r /t 60
+
+# After restart, run:
+wsl --distribution Ubuntu

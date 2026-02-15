@@ -623,44 +623,46 @@ find_package(TBB REQUIRED)
 # The Intel TBB library will use the std::exception_ptr feature of C++11.
 # add_definitions(-DTBB_USE_CAPTURED_EXCEPTION=0)
 
-find_package(OpenSSL REQUIRED)
-find_package(CURL REQUIRED)
+# OpenSSL and CURL intentionally disabled for this build
+# find_package(OpenSSL REQUIRED)
+# find_package(CURL REQUIRED)
 find_package(Freetype REQUIRED)
 
 
-add_library(libcurl INTERFACE)
-target_link_libraries(libcurl INTERFACE CURL::libcurl)
+# add_library(libcurl INTERFACE)
+# target_link_libraries(libcurl INTERFACE CURL::libcurl)
 
 find_package(ZLIB REQUIRED)
-target_link_libraries(libcurl INTERFACE ZLIB::ZLIB)
+# target_link_libraries(libcurl INTERFACE ZLIB::ZLIB)
 
 # Fixing curl's cmake config script bugs
-if (NOT WIN32)
-    # Required by libcurl
-    #find_package(ZLIB REQUIRED)
-    #target_link_libraries(libcurl INTERFACE ZLIB::ZLIB)
-    #find_package(Libssh2 REQUIRED)
-    #target_link_libraries(libcurl INTERFACE Libssh2::libssh2)
-else()
-    target_link_libraries(libcurl INTERFACE crypt32)
-endif()
+# if (NOT WIN32)
+#     # Required by libcurl
+#     #find_package(ZLIB REQUIRED)
+#     #target_link_libraries(libcurl INTERFACE ZLIB::ZLIB)
+#     #find_package(Libssh2 REQUIRED)
+#     #target_link_libraries(libcurl INTERFACE Libssh2::libssh2)
+# else()
+#     target_link_libraries(libcurl INTERFACE crypt32)
+# endif()
 
-if (SLIC3R_STATIC AND NOT SLIC3R_STATIC_EXCLUDE_CURL)
-    if (NOT APPLE)
-        # libcurl is always linked dynamically to the system libcurl on OSX.
-        # On other systems, libcurl is linked statically if SLIC3R_STATIC is set.
-        target_compile_definitions(libcurl INTERFACE CURL_STATICLIB)
-    endif()
-    if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
-        # As of now, our build system produces a statically linked libcurl,
-        # which links the OpenSSL library dynamically.
-        find_package(OpenSSL REQUIRED)
-        message("OpenSSL include dir: ${OPENSSL_INCLUDE_DIR}")
-        message("OpenSSL libraries: ${OPENSSL_LIBRARIES}")
-        target_include_directories(libcurl SYSTEM INTERFACE ${OPENSSL_INCLUDE_DIR})
-        target_link_libraries(libcurl INTERFACE ${OPENSSL_LIBRARIES})
-    endif()
-endif()
+# Disabled libcurl configuration since CURL is not being used
+# if (SLIC3R_STATIC AND NOT SLIC3R_STATIC_EXCLUDE_CURL)
+#     if (NOT APPLE)
+#         # libcurl is always linked dynamically to the system libcurl on OSX.
+#         # On other systems, libcurl is linked statically if SLIC3R_STATIC is set.
+#         target_compile_definitions(libcurl INTERFACE CURL_STATICLIB)
+#     endif()
+#     if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+#         # As of now, our build system produces a statically linked libcurl,
+#         # which links the OpenSSL library dynamically.
+#         find_package(OpenSSL REQUIRED)
+#         message("OpenSSL include dir: ${OPENSSL_INCLUDE_DIR}")
+#         message("OpenSSL libraries: ${OPENSSL_LIBRARIES}")
+#         target_include_directories(libcurl SYSTEM INTERFACE ${OPENSSL_INCLUDE_DIR})
+#         target_link_libraries(libcurl INTERFACE ${OPENSSL_LIBRARIES})
+#     endif()
+# endif()
 
 ## OPTIONAL packages
 
@@ -770,14 +772,15 @@ if(SLIC3R_STATIC)
     set(USE_BLOSC TRUE)
 endif ()
 
+# OpenVDB made optional for this build
 find_package(OpenVDB 5.0 COMPONENTS openvdb)
 if(OpenVDB_FOUND)
     slic3r_remap_configs(IlmBase::Half RelWithDebInfo Release)
     slic3r_remap_configs(Blosc::blosc RelWithDebInfo Release)
+    message(STATUS "OpenVDB found and will be used")
 else ()
-    message(FATAL_ERROR "OpenVDB could not be found with the bundled find module. "
-                   "You can try to specify the find module location of your "
-                   "OpenVDB installation with the OPENVDB_FIND_MODULE_PATH cache variable.")
+    message(WARNING "OpenVDB could not be found - continuing without it. "
+                   "Some advanced features may not be available.")
 endif ()
 
 find_path(SPNAV_INCLUDE_DIR spnav.h)

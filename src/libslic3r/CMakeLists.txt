@@ -539,7 +539,8 @@ cmake_policy(POP)
 encoding_check(libslic3r)
 
 # Disable CGAL-dependent features due to CGAL/Boost/MSVC template compatibility issues
-target_compile_definitions(libslic3r PUBLIC -DUSE_TBB -DTBB_USE_CAPTURED_EXCEPTION=0 -DDISABLE_CGAL_FEATURES=1 -DDISABLE_OPENCV_FEATURES=1)
+# Also disable CURL and OpenSSL features (not built in dependencies)
+target_compile_definitions(libslic3r PUBLIC -DUSE_TBB -DTBB_USE_CAPTURED_EXCEPTION=0 -DDISABLE_CGAL_FEATURES=1 -DDISABLE_OPENCV_FEATURES=1 -DDISABLE_CURL_FEATURES=1 -DDISABLE_OPENSSL_FEATURES=1)
 target_include_directories(libslic3r PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(libslic3r SYSTEM PUBLIC ${EXPAT_INCLUDE_DIRS})
 

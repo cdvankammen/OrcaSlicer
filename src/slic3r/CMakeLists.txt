@@ -810,4 +810,5 @@ endif ()
 # Add a definition so that we can tell we are compiling slic3r.
 target_compile_definitions(libslic3r_gui PRIVATE SLIC3R_CURRENTLY_COMPILING_GUI_MODULE)
 # Disable CGAL-dependent features due to CGAL/Boost/MSVC template compatibility issues
-target_compile_definitions(libslic3r_gui PUBLIC DISABLE_CGAL_FEATURES=1)
+# Also disable CURL and OpenSSL features (not built in dependencies)
+target_compile_definitions(libslic3r_gui PUBLIC DISABLE_CGAL_FEATURES=1 DISABLE_CURL_FEATURES=1 DISABLE_OPENSSL_FEATURES=1)
